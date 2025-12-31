@@ -33,6 +33,14 @@ Project is portable: no absolute file paths; only asset IDs + metadata
 
 Renderer is a black box: Editor produces a RenderPlan, renderer executes it
 
+1.1 Foundation Guardrails
+
+v0.01 is not a throwaway prototype.
+
+No breaking changes without a migration.
+
+No feature may bypass StorageProvider to touch persistence directly.
+
 2. Non-Goals (v0.01)
 
 Multi-track timeline editing (beyond cuts + effects)
