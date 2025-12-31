@@ -34,7 +34,11 @@ export function EditorPage({ project, storage, onBack }: Props) {
           return;
         }
         setAssetStatus("error");
-        setAssetError(error instanceof Error ? error.message : "Unknown error");
+        if (error instanceof Error && error.message.startsWith("Asset not found")) {
+          setAssetError("Source media not found on this device.");
+        } else {
+          setAssetError("Unable to load source media.");
+        }
       }
     };
 
@@ -60,7 +64,12 @@ export function EditorPage({ project, storage, onBack }: Props) {
 
       <div style={{ marginTop: 16 }}>
         {assetStatus === "loading" && <p>Loading video...</p>}
-        {assetStatus === "error" && <p>Video load error: {assetError}</p>}
+        {assetStatus === "error" && (
+          <div>
+            <p>{assetError ?? "Source media not found on this device."}</p>
+            <button disabled>Re-link source file (v0.02)</button>
+          </div>
+        )}
         {videoUrl && (
           <video
             controls
