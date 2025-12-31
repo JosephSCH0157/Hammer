@@ -222,6 +222,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [assetActionError, setAssetActionError] = useState<string | null>(null);
   const [assetFilter, setAssetFilter] = useState<"all" | Asset["kind"]>("all");
   const [assetSort, setAssetSort] = useState<"newest" | "name" | "type">("newest");
+  const [activeLeftTab, setActiveLeftTab] = useState<
+    "transcript" | "retakes" | "shorts" | "captions" | "assets" | "templates"
+  >("transcript");
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
@@ -1099,139 +1102,167 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
 
       <aside className="hm-leftrail">
         <div className="hm-leftrail-tabs">
-          <button className="hm-tab active" type="button">
+          <button
+            className={`hm-tab${activeLeftTab === "transcript" ? " active" : ""}`}
+            type="button"
+            onClick={() => setActiveLeftTab("transcript")}
+          >
             Transcript
           </button>
-          <button className="hm-tab" type="button" disabled>
+          <button
+            className={`hm-tab${activeLeftTab === "retakes" ? " active" : ""}`}
+            type="button"
+            disabled
+          >
             Retakes
           </button>
-          <button className="hm-tab" type="button" disabled>
+          <button
+            className={`hm-tab${activeLeftTab === "shorts" ? " active" : ""}`}
+            type="button"
+            disabled
+          >
             Shorts
           </button>
-          <button className="hm-tab" type="button" disabled>
+          <button
+            className={`hm-tab${activeLeftTab === "captions" ? " active" : ""}`}
+            type="button"
+            disabled
+          >
             Captions
           </button>
-          <button className="hm-tab" type="button" disabled>
+          <button
+            className={`hm-tab${activeLeftTab === "assets" ? " active" : ""}`}
+            type="button"
+            disabled
+          >
             Assets
           </button>
-          <button className="hm-tab" type="button" disabled>
+          <button
+            className={`hm-tab${activeLeftTab === "templates" ? " active" : ""}`}
+            type="button"
+            disabled
+          >
             Templates
           </button>
         </div>
         <div className="hm-leftrail-panels">
-            <section className="hm-panel hm-panel--transcript">
-              <div className="hm-panel-header">
-              <div className="hm-panel-titleRow">
-                <h2 className="hm-panel-title">Transcript</h2>
-                <span className="hm-panel-count">{segments.length} segments</span>
-              </div>
-                <div className="hm-panel-actions">
-                  <button
-                    className="hm-button hm-button--ghost"
-                    onClick={handleImportTranscriptClick}
-                    disabled={transcriptStatus === "loading"}
-                  >
-                    Import transcript
-                  </button>
-                <button
-                  className="hm-button"
-                  onClick={handleGenerateTranscript}
-                  disabled={transcriptStatus === "loading"}
-                >
-                  {segments.length > 0 ? "Regenerate" : "Generate stub"}
-                </button>
-              </div>
-            </div>
-              <div className="hm-panel-body">
-                {transcriptStatus === "error" && (
-                  <p className="stacked-gap">Transcript error: {transcriptError}</p>
-                )}
-                {transcriptStatus === "loading" && (
-                  <p className="muted stacked-gap">Importing transcript...</p>
-                )}
-                {segments.length === 0 ? (
-                <p className="muted stacked-gap-lg">
-                  No transcript yet. Generate a stub to wire up interaction.
-                </p>
-                ) : (
-                  <div className="transcript-list">
-                    {segments.map((segment) => {
-                      const isActive = segment.id === activeSegmentId;
-                      const hasRange = segment.endMs > segment.startMs;
-                      const timeLabel = hasRange
-                        ? `${formatTimestamp(segment.startMs)} – ${formatTimestamp(segment.endMs)}`
-                        : formatTimestamp(segment.startMs);
-                      return (
-                        <button
-                          key={segment.id}
-                          onClick={() => handleSegmentClick(segment)}
-                          className={`transcript-segment${isActive ? " active" : ""}`}
-                        >
-                          <div className="transcript-timestamp">{timeLabel}</div>
-                          <div className="transcript-text">{segment.text}</div>
-                        </button>
-                      );
-                    })}
+          {activeLeftTab === "transcript" && (
+            <>
+              <section className="hm-panel hm-panel--transcript">
+                <div className="hm-panel-header">
+                  <div className="hm-panel-titleRow">
+                    <h2 className="hm-panel-title">Transcript</h2>
+                    <span className="hm-panel-count">{segments.length} segments</span>
                   </div>
-              )}
-            </div>
-          </section>
-
-          <section className="hm-panel hm-panel--cuts">
-            <div className="hm-panel-header">
-              <h2 className="hm-panel-title">Cuts</h2>
-            </div>
-            <div className="hm-panel-body">
-              <div className="cuts-marks">
-                <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
-                <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
-                <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
-              </div>
-              {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
-              {cuts.length === 0 ? (
-                <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
-              ) : (
-                <div className="cuts-list">
-                  {cuts.map((cut) => (
-                    <div
-                      key={cut.id}
-                      className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
-                      onClick={() => setSelectedCutId(cut.id)}
+                  <div className="hm-panel-actions">
+                    <button
+                      className="hm-button hm-button--ghost"
+                      onClick={handleImportTranscriptClick}
+                      disabled={transcriptStatus === "loading"}
                     >
-                      <div className="cut-info">
-                        <div className="cut-times">
-                          {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
-                        </div>
-                        <div className="cut-duration">
-                          Duration: {formatDuration(cut.outMs - cut.inMs)}
-                        </div>
-                      </div>
-                      <div className="cut-actions">
-                        <button
-                          className="hm-button hm-button--ghost"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handlePlayCut(cut);
-                          }}
-                        >
-                          Play
-                        </button>
-                        <button
-                          className="hm-button hm-button--ghost"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleDeleteCut(cut.id);
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                      Import transcript
+                    </button>
+                    <button
+                      className="hm-button"
+                      onClick={handleGenerateTranscript}
+                      disabled={transcriptStatus === "loading"}
+                    >
+                      {segments.length > 0 ? "Regenerate" : "Generate stub"}
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-          </section>
+                <div className="hm-panel-body">
+                  {transcriptStatus === "error" && (
+                    <p className="stacked-gap">Transcript error: {transcriptError}</p>
+                  )}
+                  {transcriptStatus === "loading" && (
+                    <p className="muted stacked-gap">Importing transcript...</p>
+                  )}
+                  {segments.length === 0 ? (
+                    <p className="muted stacked-gap-lg">
+                      No transcript yet. Generate a stub to wire up interaction.
+                    </p>
+                  ) : (
+                    <div className="transcript-list">
+                      {segments.map((segment) => {
+                        const isActive = segment.id === activeSegmentId;
+                        const hasRange = segment.endMs > segment.startMs;
+                        const timeLabel = hasRange
+                          ? `${formatTimestamp(segment.startMs)} – ${formatTimestamp(segment.endMs)}`
+                          : formatTimestamp(segment.startMs);
+                        return (
+                          <button
+                            key={segment.id}
+                            onClick={() => handleSegmentClick(segment)}
+                            className={`transcript-segment${isActive ? " active" : ""}`}
+                          >
+                            <div className="transcript-timestamp">{timeLabel}</div>
+                            <div className="transcript-text">{segment.text}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="hm-panel hm-panel--cuts">
+                <div className="hm-panel-header">
+                  <h2 className="hm-panel-title">Cuts</h2>
+                </div>
+                <div className="hm-panel-body">
+                  <div className="cuts-marks">
+                    <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
+                    <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
+                    <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
+                  </div>
+                  {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
+                  {cuts.length === 0 ? (
+                    <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
+                  ) : (
+                    <div className="cuts-list">
+                      {cuts.map((cut) => (
+                        <div
+                          key={cut.id}
+                          className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
+                          onClick={() => setSelectedCutId(cut.id)}
+                        >
+                          <div className="cut-info">
+                            <div className="cut-times">
+                              {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
+                            </div>
+                            <div className="cut-duration">
+                              Duration: {formatDuration(cut.outMs - cut.inMs)}
+                            </div>
+                          </div>
+                          <div className="cut-actions">
+                            <button
+                              className="hm-button hm-button--ghost"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handlePlayCut(cut);
+                              }}
+                            >
+                              Play
+                            </button>
+                            <button
+                              className="hm-button hm-button--ghost"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleDeleteCut(cut.id);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </>
+          )}
         </div>
       </aside>
 
