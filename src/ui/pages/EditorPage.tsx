@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
-import type { Asset, Cut, ProjectDoc, Split, TranscriptDoc, TranscriptSegment } from "../../core/types/project";
+import type {
+  Asset,
+  Cut,
+  ProjectDoc,
+  ShortIntent,
+  ShortLengthPreset,
+  ShortSuggestion,
+  Split,
+  TranscriptDoc,
+  TranscriptSegment,
+} from "../../core/types/project";
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
 import { computeKeptRanges } from "../../core/time/keptRanges";
 import { exportFull } from "../../features/export/exportFull";
+import { generateShortSuggestions } from "../../features/shorts/shortsEngine";
 import {
   buildTranscriptDoc,
   parseSrt,
@@ -27,6 +38,19 @@ const SPLIT_DEDUPE_WINDOW_MS = 50;
 const TIMELINE_PX_PER_MS = 0.05;
 const THUMB_SPACING_MS = 2000;
 const MAX_THUMBS_PER_PASS = 2;
+
+const SHORT_INTENT_OPTIONS: Array<{ id: ShortIntent; label: string }> = [
+  { id: "teaser_funnel", label: "Teaser / Funnel" },
+  { id: "ctr_hook", label: "CTR / Hook-first" },
+  { id: "value_evergreen", label: "Value / Evergreen" },
+  { id: "community_personality", label: "Community / Personality" },
+];
+
+const SHORT_PRESET_OPTIONS: Array<{ id: ShortLengthPreset; label: string }> = [
+  { id: "fast", label: "Fast (15-30s)" },
+  { id: "default", label: "Default (25-45s)" },
+  { id: "standard", label: "Standard (30-60s)" },
+];
 
 const waitForMediaEvent = (
   video: HTMLVideoElement,
@@ -225,7 +249,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [activeLeftTab, setActiveLeftTab] = useState<
     "transcript" | "retakes" | "shorts" | "captions" | "assets" | "templates"
   >("transcript");
-  const [activeRightTab, setActiveRightTab] = useState<"assets" | "transcript">("assets");
+  const [activeRightTab, setActiveRightTab] = useState<"assets" | "transcript" | "shorts">("assets");
+  const [shortIntent, setShortIntent] = useState<ShortIntent>("teaser_funnel");
+  const [shortPreset, setShortPreset] = useState<ShortLengthPreset>("default");
+  const [shortSuggestions, setShortSuggestions] = useState<ShortSuggestion[]>([]);
+  const [shortsStatus, setShortsStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [shortsError, setShortsError] = useState<string | null>(null);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
@@ -237,10 +266,15 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const thumbQueueRef = useRef<number[]>([]);
   const thumbBusyRef = useRef(false);
   const assetPreviewMapRef = useRef<Map<string, string>>(new Map());
+  const previewTimerRef = useRef<number | null>(null);
   const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
+  const hasTimestampedTranscript = useMemo(
+    () => segments.some((segment) => segment.endMs > segment.startMs),
+    [segments]
+  );
   const visibleAssets = useMemo(() => {
     const nameFor = (asset: Asset) => asset.displayName ?? asset.name;
     const compareName = (a: Asset, b: Asset) => nameFor(a).localeCompare(nameFor(b));
@@ -401,6 +435,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const exportCodecLabel = exportResult?.videoCodec
     ? `codecs: ${exportResult.videoCodec}${exportResult.audioCodec ? `/${exportResult.audioCodec}` : ""}`
     : "";
+  const shortsBlocked = !hasTimestampedTranscript;
+  const shortsBlockedMessage = shortsBlocked ? "Need VTT/SRT timestamps." : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -505,6 +541,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   }, [activeSegmentId, segments]);
 
   useEffect(() => {
+    setShortSuggestions([]);
+    setShortsStatus("idle");
+    setShortsError(null);
+  }, [project.projectId, project.transcript?.id]);
+
+  useEffect(() => {
     if (!videoUrl) {
       return;
     }
@@ -560,11 +602,25 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     schedule();
   }, [thumbTimes, videoUrl]);
 
+  const clearPreviewTimer = () => {
+    if (previewTimerRef.current !== null) {
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearPreviewTimer();
+    };
+  }, []);
+
   const handleTogglePlay = async () => {
     const video = videoRef.current;
     if (!video || !canTransport) {
       return;
     }
+    clearPreviewTimer();
     if (!video.paused) {
       video.pause();
       return;
@@ -588,6 +644,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     } catch {
       setIsPlaying(false);
     }
+  };
+
+  const handleVideoPause = () => {
+    clearPreviewTimer();
+    setIsPlaying(false);
+  };
+
+  const handleVideoEnded = () => {
+    clearPreviewTimer();
+    setIsPlaying(false);
   };
 
   const handleTimeUpdate = () => {
@@ -741,6 +807,115 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     });
   };
 
+  const buildShortLabel = (title: string) => {
+    const base = title.trim();
+    const label = base ? `Short: ${base}` : "Short";
+    if (label.length <= 60) {
+      return label;
+    }
+    return `${label.slice(0, 57).trim()}...`;
+  };
+
+  const hasDuplicateShortCut = (inMs: number, outMs: number, list: Cut[]) =>
+    list.some(
+      (cut) => Math.abs(cut.inMs - inMs) < 250 && Math.abs(cut.outMs - outMs) < 250
+    );
+
+  const handleGenerateShorts = () => {
+    if (!project.transcript || shortsBlocked) {
+      setShortsError("Need VTT/SRT timestamps.");
+      setShortSuggestions([]);
+      return;
+    }
+    setShortsStatus("loading");
+    setShortsError(null);
+    try {
+      const suggestions = generateShortSuggestions(
+        project.transcript,
+        shortIntent,
+        shortPreset,
+        20
+      );
+      setShortSuggestions(suggestions);
+      setShortsStatus("idle");
+    } catch (error) {
+      setShortsStatus("error");
+      setShortsError(
+        error instanceof Error ? error.message : "Unable to generate suggestions."
+      );
+    }
+  };
+
+  const handlePreviewSuggestion = async (suggestion: ShortSuggestion) => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    clearPreviewTimer();
+    setStopAtMs(suggestion.endMs);
+    video.currentTime = suggestion.startMs / 1000;
+    setCurrentTimeMs(suggestion.startMs);
+    try {
+      await video.play();
+    } catch {
+      setIsPlaying(false);
+    }
+    const durationMs = Math.max(0, suggestion.endMs - suggestion.startMs);
+    previewTimerRef.current = window.setTimeout(() => {
+      const currentVideo = videoRef.current;
+      if (currentVideo) {
+        currentVideo.pause();
+      }
+      setStopAtMs(null);
+      previewTimerRef.current = null;
+    }, durationMs);
+  };
+
+  const handleDismissSuggestion = (suggestionId: string) => {
+    setShortSuggestions((items) => items.filter((item) => item.id !== suggestionId));
+  };
+
+  const addCutsFromSuggestions = async (suggestions: ShortSuggestion[]) => {
+    if (suggestions.length === 0) {
+      return;
+    }
+    setCutStatus("loading");
+    setCutError(null);
+    try {
+      const nextCuts = [...cuts];
+      suggestions.forEach((suggestion) => {
+        if (hasDuplicateShortCut(suggestion.startMs, suggestion.endMs, nextCuts)) {
+          return;
+        }
+        nextCuts.push({
+          id: createId(),
+          inMs: suggestion.startMs,
+          outMs: suggestion.endMs,
+          label: buildShortLabel(suggestion.title),
+        });
+      });
+      if (nextCuts.length === cuts.length) {
+        setCutStatus("idle");
+        return;
+      }
+      const updated = await storage.setCuts(project.projectId, nextCuts);
+      onProjectUpdated(updated);
+      setCutStatus("idle");
+    } catch (error) {
+      setCutStatus("error");
+      setCutError(error instanceof Error ? error.message : "Unable to save cut.");
+    }
+  };
+
+  const handleCreateDraftCut = async (suggestion: ShortSuggestion) => {
+    await addCutsFromSuggestions([suggestion]);
+  };
+
+  const handleCreateTopDraftCuts = async () => {
+    const topSuggestions = shortSuggestions.slice(0, 5);
+    await addCutsFromSuggestions(topSuggestions);
+  };
+
   const handleSeekTo = (ms: number) => {
     const video = videoRef.current;
     if (!video) {
@@ -868,6 +1043,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     if (!video) {
       return;
     }
+    clearPreviewTimer();
     setStopAtMs(cut.outMs);
     video.currentTime = cut.inMs / 1000;
     setCurrentTimeMs(cut.inMs);
@@ -1244,8 +1420,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               src={videoUrl}
               onTimeUpdate={handleTimeUpdate}
               onPlay={() => setIsPlaying(true)}
-              onPause={() => setIsPlaying(false)}
-              onEnded={() => setIsPlaying(false)}
+              onPause={handleVideoPause}
+              onEnded={handleVideoEnded}
               className="hm-stage-video"
             />
           )}
@@ -1276,6 +1452,13 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               onClick={() => setActiveRightTab("transcript")}
             >
               Transcript
+            </button>
+            <button
+              className={`hm-tab${activeRightTab === "shorts" ? " active" : ""}`}
+              type="button"
+              onClick={() => setActiveRightTab("shorts")}
+            >
+              Shorts
             </button>
           </div>
           <div className="hm-assetbinActions">
@@ -1378,7 +1561,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 </div>
               )}
             </>
-          ) : (
+          ) : activeRightTab === "transcript" ? (
             <section className="hm-right-panel">
               <div className="hm-panel-header">
                 <div className="hm-panel-titleRow">
@@ -1430,6 +1613,127 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                           <div className="transcript-timestamp">{timeLabel}</div>
                           <div className="transcript-text">{segment.text}</div>
                         </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          ) : (
+            <section className="hm-right-panel hm-shorts-panel">
+              <div className="hm-panel-header">
+                <div className="hm-panel-titleRow">
+                  <h2 className="hm-panel-title">Shorts</h2>
+                  <span className="hm-panel-count">{shortSuggestions.length} suggestions</span>
+                </div>
+              </div>
+              <div className="hm-panel-body">
+                <div className="hm-shorts-controls">
+                  <div className="hm-shorts-intents">
+                    {SHORT_INTENT_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={`hm-short-intent${shortIntent === option.id ? " active" : ""}`}
+                        onClick={() => setShortIntent(option.id)}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="hm-shorts-actions">
+                    <label className="hm-shorts-select">
+                      <span>Length</span>
+                      <select
+                        value={shortPreset}
+                        onChange={(event) =>
+                          setShortPreset(event.target.value as ShortLengthPreset)
+                        }
+                      >
+                        {SHORT_PRESET_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="hm-button hm-button--compact"
+                      onClick={handleGenerateShorts}
+                      disabled={shortsStatus === "loading" || shortsBlocked}
+                    >
+                      {shortsStatus === "loading" ? "Generating..." : "Generate"}
+                    </button>
+                    {shortSuggestions.length > 0 && (
+                      <button
+                        className="hm-button hm-button--ghost hm-button--compact"
+                        onClick={handleCreateTopDraftCuts}
+                        disabled={cutStatus === "loading"}
+                      >
+                        Create Top 5 Draft Cuts
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {shortsBlocked && <p className="hm-short-warning">{shortsBlockedMessage}</p>}
+                {shortsError && (
+                  <p className="hm-short-warning hm-short-warning--error">{shortsError}</p>
+                )}
+                {!shortsBlocked && shortSuggestions.length === 0 && shortsStatus === "idle" && (
+                  <p className="muted stacked-gap-lg">No suggestions yet. Generate to get started.</p>
+                )}
+                {shortSuggestions.length > 0 && (
+                  <div className="hm-short-list">
+                    {shortSuggestions.map((suggestion) => {
+                      const duration = suggestion.endMs - suggestion.startMs;
+                      return (
+                        <div key={suggestion.id} className="hm-short-card">
+                          <div className="hm-short-header">
+                            <div className="hm-short-title" title={suggestion.title}>
+                              {suggestion.title}
+                            </div>
+                            <div className="hm-short-score">Score {suggestion.score}</div>
+                          </div>
+                          <div className="hm-short-hook">{suggestion.hook}</div>
+                          <div className="hm-short-meta">
+                            <span>{formatDuration(duration)}</span>
+                            <span>
+                              {formatTimestamp(suggestion.startMs)} - {formatTimestamp(suggestion.endMs)}
+                            </span>
+                          </div>
+                          <div className="hm-short-reasons">
+                            {suggestion.reasonTags.map((tag) => (
+                              <span key={tag} className="hm-short-reason">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="hm-short-actions">
+                            <button
+                              type="button"
+                              className="hm-button hm-button--ghost hm-button--compact"
+                              onClick={() => void handlePreviewSuggestion(suggestion)}
+                              disabled={!canTransport}
+                            >
+                              Preview
+                            </button>
+                            <button
+                              type="button"
+                              className="hm-button hm-button--compact"
+                              onClick={() => void handleCreateDraftCut(suggestion)}
+                              disabled={cutStatus === "loading"}
+                            >
+                              Create Draft Cut
+                            </button>
+                            <button
+                              type="button"
+                              className="hm-button hm-button--ghost hm-button--compact"
+                              onClick={() => handleDismissSuggestion(suggestion.id)}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>

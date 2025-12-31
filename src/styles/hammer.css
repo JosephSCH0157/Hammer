@@ -369,6 +369,142 @@ textarea:focus {
   margin-top: 4px;
 }
 
+.hm-shorts-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.hm-shorts-intents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hm-short-intent {
+  border: 1px solid var(--forge-border);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.hm-short-intent.active {
+  background: var(--forge-panel-3);
+  border-color: var(--forge-accent-2);
+  box-shadow: inset 0 -2px 0 var(--forge-accent);
+}
+
+.hm-shorts-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hm-shorts-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-shorts-select select {
+  background: var(--forge-panel-2);
+  border: 1px solid var(--forge-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--forge-text);
+}
+
+.hm-short-warning {
+  font-size: 12px;
+  color: var(--forge-muted);
+  margin: 0;
+}
+
+.hm-short-warning--error {
+  color: var(--forge-danger);
+}
+
+.hm-short-list {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.hm-short-card {
+  border: 1px solid var(--forge-border);
+  border-radius: 12px;
+  background: var(--forge-panel);
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.hm-short-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hm-short-title {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hm-short-score {
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-short-hook {
+  font-size: 12px;
+  color: var(--forge-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hm-short-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-short-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hm-short-reason {
+  border: 1px solid var(--forge-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--forge-muted);
+  background: var(--forge-panel-2);
+}
+
+.hm-short-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .cuts-marks {
   display: flex;
   gap: 12px;

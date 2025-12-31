@@ -81,6 +81,25 @@ export type Asset = {
   durationMs?: number;
 };
 
+export type ShortIntent =
+  | "teaser_funnel"
+  | "ctr_hook"
+  | "value_evergreen"
+  | "community_personality";
+
+export type ShortLengthPreset = "fast" | "default" | "standard";
+
+export type ShortSuggestion = {
+  id: string;
+  startMs: number;
+  endMs: number;
+  score: number;
+  title: string;
+  hook: string;
+  reasonTags: string[];
+  segmentIds: string[];
+};
+
 export type ShortClip = {
   id: string;
   title?: string;
