@@ -22,7 +22,7 @@ export type ProjectDoc = {
   };
   transcript?: Transcript;
   edl: {
-    cuts: Array<{ startMs: number; endMs: number; reason: string; enabled: boolean }>;
+    cuts: Cut[];
   };
   effects: {
     audio: { preset: "off" | "studio_clean"; params?: Record<string, number | boolean> };
@@ -48,6 +48,14 @@ export type Transcript = {
   engine?: string;
   language?: string;
   segments: TranscriptSegment[];
+};
+
+export type Cut = {
+  id: string;
+  inMs: number;
+  outMs: number;
+  label?: string;
+  createdAt?: string;
 };
 
 export type ShortClip = {

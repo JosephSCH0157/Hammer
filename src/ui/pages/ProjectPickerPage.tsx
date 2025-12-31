@@ -113,7 +113,7 @@ export function ProjectPickerPage({ storage, onOpenProject }: Props) {
               </div>
               <div className="project-meta">
                 Duration: {formatDuration(p.durationMs)} | {p.width}x{p.height} |{" "}
-                {p.hasTranscript ? "Transcript" : "No transcript"}
+                {p.hasTranscript ? "Transcript" : "No transcript"} | Cuts: {p.cutsCount}
               </div>
 
               <div className="project-actions">

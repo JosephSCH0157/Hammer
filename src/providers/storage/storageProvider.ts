@@ -1,4 +1,4 @@
-import type { AssetId, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
+import type { AssetId, Cut, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
 
 export type ProjectListItem = {
   projectId: string;
@@ -8,6 +8,7 @@ export type ProjectListItem = {
   width: number;
   height: number;
   hasTranscript: boolean;
+  cutsCount: number;
 };
 
 export type AssetMeta = {
@@ -28,6 +29,8 @@ export interface StorageProvider {
   relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
   /** Set transcript data for a project. */
   setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
+  /** Set edit decision cuts for a project. */
+  setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<ProjectListItem[]>;

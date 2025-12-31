@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
+import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
 
@@ -10,6 +10,10 @@ const formatTimestamp = (ms: number): string => {
   const seconds = totalSeconds % 60;
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
+
+const formatDuration = (ms: number): string => formatTimestamp(ms);
+
+const MIN_CUT_DURATION_MS = 500;
 
 const buildStubTranscript = (durationMs: number): Transcript => {
   const script = [
@@ -58,13 +62,25 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [transcriptStatus, setTranscriptStatus] = useState<"idle" | "loading" | "error">("idle");
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
+  const [markInMs, setMarkInMs] = useState<number | null>(null);
+  const [markOutMs, setMarkOutMs] = useState<number | null>(null);
+  const [cutStatus, setCutStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [cutError, setCutError] = useState<string | null>(null);
+  const [stopAtMs, setStopAtMs] = useState<number | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const segments = project.transcript?.segments ?? [];
+  const cuts = project.edl?.cuts ?? [];
   const canRetry = showRetry || Boolean(assetError?.includes("IndexedDB open blocked"));
+  const isCutValid =
+    markInMs !== null &&
+    markOutMs !== null &&
+    markOutMs > markInMs &&
+    markOutMs - markInMs >= MIN_CUT_DURATION_MS &&
+    markOutMs <= project.source.durationMs;
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +140,28 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setActiveSegmentId(null);
   }, [project.projectId, segments.length]);
 
+  useEffect(() => {
+    setMarkInMs(null);
+    setMarkOutMs(null);
+    setCutStatus("idle");
+    setCutError(null);
+    setStopAtMs(null);
+  }, [project.projectId]);
+
+  const getCurrentTimeMs = (): number | null => {
+    if (!videoRef.current) {
+      return null;
+    }
+    return Math.round(videoRef.current.currentTime * 1000);
+  };
+
+  const createCutId = (): string => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `cut_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  };
+
   const handleRelinkClick = () => {
     relinkInputRef.current?.click();
   };
@@ -159,6 +197,87 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     } catch (error) {
       setTranscriptStatus("error");
       setTranscriptError(error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
+  const handleMarkIn = () => {
+    const currentMs = getCurrentTimeMs();
+    if (currentMs === null) {
+      setCutError("Video not loaded.");
+      return;
+    }
+    setCutError(null);
+    setMarkInMs(currentMs);
+  };
+
+  const handleMarkOut = () => {
+    const currentMs = getCurrentTimeMs();
+    if (currentMs === null) {
+      setCutError("Video not loaded.");
+      return;
+    }
+    setCutError(null);
+    setMarkOutMs(currentMs);
+  };
+
+  const handleAddCut = async () => {
+    if (markInMs === null || markOutMs === null) {
+      setCutError("Mark both in and out before adding a cut.");
+      return;
+    }
+    if (markOutMs <= markInMs) {
+      setCutError("Out point must be after in point.");
+      return;
+    }
+    if (markOutMs - markInMs < MIN_CUT_DURATION_MS) {
+      setCutError(`Cut must be at least ${MIN_CUT_DURATION_MS}ms.`);
+      return;
+    }
+    if (markOutMs > project.source.durationMs) {
+      setCutError("Out point exceeds source duration.");
+      return;
+    }
+    setCutStatus("loading");
+    setCutError(null);
+    try {
+      const newCut: Cut = {
+        id: createCutId(),
+        inMs: markInMs,
+        outMs: markOutMs,
+        createdAt: new Date().toISOString(),
+      };
+      const nextCuts = [...cuts, newCut].sort((a, b) => a.inMs - b.inMs);
+      const updatedProject = await storage.setCuts(project.projectId, nextCuts);
+      onProjectUpdated(updatedProject);
+      setMarkInMs(null);
+      setMarkOutMs(null);
+      setCutStatus("idle");
+    } catch (error) {
+      setCutStatus("error");
+      setCutError(error instanceof Error ? error.message : "Failed to add cut.");
+    }
+  };
+
+  const handlePlayCut = (cut: Cut) => {
+    if (!videoRef.current) {
+      return;
+    }
+    videoRef.current.currentTime = cut.inMs / 1000;
+    setStopAtMs(cut.outMs);
+    void videoRef.current.play().catch(() => undefined);
+  };
+
+  const handleDeleteCut = async (cutId: string) => {
+    setCutStatus("loading");
+    setCutError(null);
+    try {
+      const nextCuts = cuts.filter((cut) => cut.id !== cutId);
+      const updatedProject = await storage.setCuts(project.projectId, nextCuts);
+      onProjectUpdated(updatedProject);
+      setCutStatus("idle");
+    } catch (error) {
+      setCutStatus("error");
+      setCutError(error instanceof Error ? error.message : "Failed to delete cut.");
     }
   };
 
@@ -202,6 +321,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       return;
     }
     const currentMs = video.currentTime * 1000;
+    if (stopAtMs !== null && currentMs >= stopAtMs) {
+      video.pause();
+      setStopAtMs(null);
+    }
     let nextActiveId: string | null = null;
     for (let i = segments.length - 1; i >= 0; i -= 1) {
       const segment = segments[i];
@@ -288,6 +411,51 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             onTimeUpdate={handleTimeUpdate}
             className="editor-video"
           />
+        )}
+      </div>
+
+      <div className="cuts-section">
+        <div className="cuts-header">
+          <h2 className="cuts-title">Cuts</h2>
+          <div className="cuts-actions">
+            <button onClick={handleMarkIn} disabled={cutStatus === "loading"}>
+              Mark In
+            </button>
+            <button onClick={handleMarkOut} disabled={cutStatus === "loading"}>
+              Mark Out
+            </button>
+            <button onClick={handleAddCut} disabled={cutStatus === "loading" || !isCutValid}>
+              Add Cut
+            </button>
+          </div>
+        </div>
+        <div className="cuts-marks">
+          <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "—"}</div>
+          <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "—"}</div>
+          <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
+        </div>
+        {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
+        {cuts.length === 0 ? (
+          <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
+        ) : (
+          <div className="cuts-list">
+            {cuts.map((cut) => (
+              <div key={cut.id} className="cut-row">
+                <div className="cut-info">
+                  <div className="cut-times">
+                    {formatTimestamp(cut.inMs)} — {formatTimestamp(cut.outMs)}
+                  </div>
+                  <div className="cut-duration">
+                    Duration: {formatDuration(cut.outMs - cut.inMs)}
+                  </div>
+                </div>
+                <div className="cut-actions">
+                  <button onClick={() => handlePlayCut(cut)}>Play</button>
+                  <button onClick={() => void handleDeleteCut(cut.id)}>Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

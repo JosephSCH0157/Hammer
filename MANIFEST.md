@@ -237,7 +237,7 @@ type ProjectDoc = {
   transcript?: Transcript;
 
   edl: {
-    cuts: Array<{ startMs: number; endMs: number; reason: string; enabled: boolean }>;
+    cuts: Cut[];
   };
 
   effects: {
@@ -261,6 +261,25 @@ type AssetId = string;    // provider-namespaced (e.g., local:uuid)
 type AssetRef = {
   providerId: ProviderId;
   assetId: AssetId;
+};
+
+type Cut = {
+  id: string;
+  inMs: number;
+  outMs: number;
+  label?: string;
+  createdAt?: string;
+};
+
+type ProjectListItem = {
+  projectId: string;
+  updatedAt: string;
+  filename: string;
+  durationMs: number;
+  width: number;
+  height: number;
+  hasTranscript: boolean;
+  cutsCount: number;
 };
 
 type Transcript = {
@@ -313,9 +332,10 @@ interface StorageProvider {
   getAsset(assetId: AssetId): Promise<Blob>;
   relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
   setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
+  setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
-  listProjects(): Promise<Array<{ projectId: string; updatedAt: string; title?: string }>>;
+  listProjects(): Promise<ProjectListItem[]>;
 }
 
 5.3 RenderPlan (Editor/Renderer boundary)

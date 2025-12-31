@@ -1,4 +1,4 @@
-import type { AssetRef, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
+import type { AssetRef, Cut, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
@@ -28,6 +28,7 @@ const buildSummary = (doc: ProjectDoc): ProjectListItem => ({
   width: doc.source.width,
   height: doc.source.height,
   hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
+  cutsCount: doc.edl?.cuts?.length ?? 0,
 });
 
 const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, ProjectListItem> => {
@@ -39,7 +40,12 @@ const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, Pr
 };
 
 type LegacyProjectSource = Omit<ProjectDoc["source"], "asset"> & { assetId: string };
-type LegacyProjectDoc = Omit<ProjectDoc, "source"> & { source: LegacyProjectSource };
+type LegacyCut = { startMs?: number; endMs?: number; reason?: string; enabled?: boolean };
+type LegacyEdl = { cuts?: LegacyCut[] };
+type LegacyProjectDoc = Omit<ProjectDoc, "source" | "edl"> & {
+  source: LegacyProjectSource;
+  edl?: LegacyEdl;
+};
 
 const normalizeSource = (
   source: ProjectDoc["source"] | LegacyProjectSource,
@@ -93,6 +99,49 @@ const normalizeSource = (
   return null;
 };
 
+const normalizeCuts = (
+  edl: ProjectDoc["edl"] | LegacyEdl | undefined
+): { edl: ProjectDoc["edl"]; migrated: boolean } => {
+  if (!edl || !Array.isArray(edl.cuts)) {
+    return { edl: { cuts: [] }, migrated: Boolean(edl) };
+  }
+  if (edl.cuts.length === 0) {
+    return { edl: { cuts: [] }, migrated: false };
+  }
+  const sample = edl.cuts[0] as Partial<LegacyCut & Cut>;
+  if ("inMs" in sample && "outMs" in sample) {
+    const sortedCuts = [...(edl.cuts as Cut[])].sort((a, b) => a.inMs - b.inMs);
+    return { edl: { cuts: sortedCuts }, migrated: false };
+  }
+  if ("startMs" in sample && "endMs" in sample) {
+    const legacyCuts = edl.cuts as LegacyCut[];
+    const mappedCuts = legacyCuts.reduce<Cut[]>((acc, cut, index) => {
+      if (typeof cut.startMs !== "number" || typeof cut.endMs !== "number") {
+        return acc;
+      }
+      if (cut.endMs <= cut.startMs) {
+        return acc;
+      }
+      const label = typeof cut.reason === "string" && cut.reason.trim().length
+        ? cut.reason.trim()
+        : undefined;
+      const entry: Cut = {
+        id: `legacy_${index}_${cut.startMs}_${cut.endMs}`,
+        inMs: cut.startMs,
+        outMs: cut.endMs,
+      };
+      if (label) {
+        entry.label = label;
+      }
+      acc.push(entry);
+      return acc;
+    }, []);
+    mappedCuts.sort((a, b) => a.inMs - b.inMs);
+    return { edl: { cuts: mappedCuts }, migrated: true };
+  }
+  return { edl: { cuts: [] }, migrated: true };
+};
+
 const normalizeProjectDocs = (
   docs: Record<string, ProjectDoc | LegacyProjectDoc>,
   providerId: ProviderId
@@ -101,15 +150,21 @@ const normalizeProjectDocs = (
   let migrated = false;
   Object.entries(docs).forEach(([projectId, doc]) => {
     const normalizedSource = normalizeSource(doc.source, providerId);
+    const normalizedEdl = normalizeCuts(doc.edl);
     if (!normalizedSource) {
-      normalized[projectId] = doc as ProjectDoc;
+      normalized[projectId] = {
+        ...(doc as ProjectDoc),
+        edl: normalizedEdl.edl,
+      };
+      migrated = migrated || normalizedEdl.migrated;
       return;
     }
     normalized[projectId] = {
       ...doc,
       source: normalizedSource.source,
+      edl: normalizedEdl.edl,
     };
-    migrated = migrated || normalizedSource.migrated;
+    migrated = migrated || normalizedSource.migrated || normalizedEdl.migrated;
   });
   return { docs: normalized, migrated };
 };
@@ -193,7 +248,13 @@ const loadProjectIndex = (): Record<string, ProjectListItem> => {
   const raw = localStorage.getItem(PROJECT_INDEX_KEY);
   if (raw) {
     try {
-      return JSON.parse(raw) as Record<string, ProjectListItem>;
+      const parsed = JSON.parse(raw) as Record<string, ProjectListItem>;
+      const needsRebuild = Object.values(parsed).some(
+        (item) => typeof item.cutsCount !== "number"
+      );
+      if (!needsRebuild) {
+        return parsed;
+      }
     } catch {
       // Fall through to rebuild from docs.
     }
@@ -353,6 +414,29 @@ export class LocalStorageProvider implements StorageProvider {
     const updatedDoc: ProjectDoc = {
       ...existing,
       transcript,
+      updatedAt: new Date().toISOString(),
+    };
+    docs[projectId] = updatedDoc;
+    index[projectId] = buildSummary(updatedDoc);
+    saveProjectDocs(docs);
+    saveProjectIndex(index);
+    return updatedDoc;
+  }
+
+  async setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc> {
+    const docs = loadProjectDocs();
+    const index = loadProjectIndex();
+    const existing = docs[projectId];
+    if (!existing) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    const sortedCuts = [...cuts].sort((a, b) => a.inMs - b.inMs);
+    const updatedDoc: ProjectDoc = {
+      ...existing,
+      edl: {
+        ...existing.edl,
+        cuts: sortedCuts,
+      },
       updatedAt: new Date().toISOString(),
     };
     docs[projectId] = updatedDoc;
