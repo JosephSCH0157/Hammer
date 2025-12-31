@@ -15,6 +15,12 @@ import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from ".
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
 import { computeKeptRanges } from "../../core/time/keptRanges";
+import { decodeMediaToPcm } from "../../features/asr/audioDecode";
+import {
+  createOfflineWhisperClient,
+  type OfflineWhisperResult,
+  type OfflineWhisperStatus,
+} from "../../features/asr/offlineWhisperClient";
 import { exportFull } from "../../features/export/exportFull";
 import { generateShortSuggestions } from "../../features/shorts/shortsEngine";
 import {
@@ -221,6 +227,14 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [lastRelinkFilename, setLastRelinkFilename] = useState<string | null>(null);
   const [transcriptStatus, setTranscriptStatus] = useState<"idle" | "loading" | "error">("idle");
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [asrStatus, setAsrStatus] = useState<
+    "idle" | "loading-model" | "transcribing" | "done" | "error"
+  >("idle");
+  const [asrProgress, setAsrProgress] = useState<number | null>(null);
+  const [asrError, setAsrError] = useState<string | null>(null);
+  const [asrCached, setAsrCached] = useState(false);
+  const [asrDevice, setAsrDevice] = useState<"webgpu" | "wasm" | null>(null);
+  const [asrModel, setAsrModel] = useState("base.en");
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
   const [markInMs, setMarkInMs] = useState<number | null>(null);
   const [markOutMs, setMarkOutMs] = useState<number | null>(null);
@@ -267,6 +281,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const thumbBusyRef = useRef(false);
   const assetPreviewMapRef = useRef<Map<string, string>>(new Map());
   const previewTimerRef = useRef<number | null>(null);
+  const asrClientRef = useRef<ReturnType<typeof createOfflineWhisperClient> | null>(null);
   const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
@@ -435,6 +450,26 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const exportCodecLabel = exportResult?.videoCodec
     ? `codecs: ${exportResult.videoCodec}${exportResult.audioCodec ? `/${exportResult.audioCodec}` : ""}`
     : "";
+  const asrBusy = asrStatus === "loading-model" || asrStatus === "transcribing";
+  const asrStatusLabel =
+    asrStatus === "idle"
+      ? "Idle"
+      : asrStatus === "loading-model"
+        ? "Downloading model"
+        : asrStatus === "transcribing"
+          ? "Transcribing"
+          : asrStatus === "done"
+            ? "Done"
+            : "Error";
+  const asrProgressLabel =
+    asrProgress !== null && asrStatus === "loading-model"
+      ? `${Math.round(asrProgress * 100)}%`
+      : "";
+  const asrDeviceLabel = asrDevice
+    ? asrDevice === "webgpu"
+      ? "WebGPU"
+      : "CPU"
+    : "";
   const shortsBlocked = !hasTimestampedTranscript;
   const shortsBlockedMessage = shortsBlocked ? "Need VTT/SRT timestamps." : "";
 
@@ -544,6 +579,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setShortSuggestions([]);
     setShortsStatus("idle");
     setShortsError(null);
+    setAsrStatus("idle");
+    setAsrProgress(null);
+    setAsrError(null);
   }, [project.projectId, project.transcript?.id]);
 
   useEffect(() => {
@@ -612,6 +650,13 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   useEffect(() => {
     return () => {
       clearPreviewTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      asrClientRef.current?.terminate();
+      asrClientRef.current = null;
     };
   }, []);
 
@@ -805,6 +850,80 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     video.play().catch(() => {
       setIsPlaying(false);
     });
+  };
+
+  const getAsrClient = () => {
+    if (!asrClientRef.current) {
+      asrClientRef.current = createOfflineWhisperClient();
+    }
+    return asrClientRef.current;
+  };
+
+  const updateAsrStatus = (status: OfflineWhisperStatus) => {
+    setAsrStatus(status.phase);
+    if (status.phase === "loading-model") {
+      setAsrProgress(status.progress ?? null);
+    } else {
+      setAsrProgress(null);
+    }
+    if (typeof status.cached === "boolean") {
+      setAsrCached(status.cached);
+    }
+    if (status.device) {
+      setAsrDevice(status.device);
+    }
+    if (status.phase === "error") {
+      setAsrError(status.message ?? "Offline transcription failed.");
+    }
+  };
+
+  const buildTranscriptFromAsr = (result: OfflineWhisperResult): TranscriptDoc => {
+    const segments = result.segments
+      .map((segment, index) => {
+        const text = segment.text.trim();
+        if (!text) {
+          return null;
+        }
+        const startMs = Math.max(0, Math.round(segment.start * 1000));
+        const endMs = Math.max(startMs, Math.round(segment.end * 1000));
+        const id = `asr_${index}_${startMs}`;
+        return { id, startMs, endMs, text };
+      })
+      .filter(Boolean) as TranscriptSegment[];
+    return buildTranscriptDoc(segments, project.source.asset.assetId, "en");
+  };
+
+  const handleOfflineTranscribe = async () => {
+    if (asrBusy) {
+      return;
+    }
+    setAsrStatus("loading-model");
+    setAsrProgress(0);
+    setAsrError(null);
+    try {
+      const blob = await storage.getAsset(project.source.asset.assetId);
+      const pcm = await decodeMediaToPcm(blob, 16_000);
+      const client = getAsrClient();
+      const result = await client.transcribe(
+        pcm.samples,
+        pcm.sampleRate,
+        { model: asrModel },
+        updateAsrStatus
+      );
+      const transcript = buildTranscriptFromAsr(result);
+      await applyTranscript(transcript);
+      setAsrStatus("done");
+      setAsrError(null);
+      if (result.cached) {
+        setAsrCached(true);
+      }
+      if (result.device) {
+        setAsrDevice(result.device);
+      }
+    } catch (error) {
+      setAsrStatus("error");
+      setAsrError(error instanceof Error ? error.message : "Offline transcription failed.");
+    }
   };
 
   const buildShortLabel = (title: string) => {
@@ -1586,6 +1705,46 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 </div>
               </div>
               <div className="hm-panel-body">
+                <div className="hm-transcript-offline">
+                  <div className="hm-transcript-offline-row">
+                    <label className="hm-transcript-model">
+                      <span>Model</span>
+                      <select
+                        value={asrModel}
+                        onChange={(event) => setAsrModel(event.target.value)}
+                        disabled={asrBusy}
+                      >
+                        <option value="base.en">base.en</option>
+                      </select>
+                    </label>
+                    <button
+                      className="hm-button hm-button--compact"
+                      onClick={handleOfflineTranscribe}
+                      disabled={asrBusy}
+                    >
+                      Generate Transcript (Offline)
+                    </button>
+                  </div>
+                  <div className="hm-transcript-status">
+                    <span>
+                      {asrStatusLabel}
+                      {asrProgressLabel ? ` (${asrProgressLabel})` : ""}
+                      {asrCached && !asrBusy ? " - Model cached" : ""}
+                    </span>
+                    {asrDeviceLabel && (
+                      <span className="hm-transcript-pill">{asrDeviceLabel}</span>
+                    )}
+                  </div>
+                  {asrStatus === "loading-model" && (
+                    <div className="hm-transcript-progress">
+                      <div
+                        className="hm-transcript-progressFill"
+                        style={{ width: `${Math.round((asrProgress ?? 0) * 100)}%` }}
+                      />
+                    </div>
+                  )}
+                  {asrError && <div className="hm-transcript-error">{asrError}</div>}
+                </div>
                 {transcriptStatus === "error" && (
                   <p className="stacked-gap">Transcript error: {transcriptError}</p>
                 )}

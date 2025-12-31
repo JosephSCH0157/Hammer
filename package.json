@@ -23,6 +23,7 @@
     "gate": "npm run typecheck && npm run lint && npm run format && npm run test && npm run build"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "mediabunny": "^1.27.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

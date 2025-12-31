@@ -369,6 +369,74 @@ textarea:focus {
   margin-top: 4px;
 }
 
+.hm-transcript-offline {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--forge-border);
+  border-radius: 12px;
+  background: var(--forge-panel);
+}
+
+.hm-transcript-offline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hm-transcript-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-transcript-model select {
+  background: var(--forge-panel-2);
+  border: 1px solid var(--forge-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--forge-text);
+}
+
+.hm-transcript-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-transcript-pill {
+  border: 1px solid var(--forge-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--forge-muted);
+  background: var(--forge-panel-2);
+}
+
+.hm-transcript-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--forge-panel-3);
+  overflow: hidden;
+}
+
+.hm-transcript-progressFill {
+  height: 100%;
+  background: var(--forge-accent);
+  width: 0%;
+}
+
+.hm-transcript-error {
+  font-size: 11px;
+  color: var(--forge-danger);
+}
+
 .hm-shorts-controls {
   display: grid;
   gap: 10px;
