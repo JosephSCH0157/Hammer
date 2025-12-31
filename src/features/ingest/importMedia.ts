@@ -22,7 +22,10 @@ export const importMedia = async (
   const asset = await storage.putAsset(file);
   const now = new Date().toISOString();
   const source: ProjectDoc["source"] = {
-    assetId: asset.assetId,
+    asset: {
+      providerId: storage.providerId,
+      assetId: asset.assetId,
+    },
     filename: file.name,
     durationMs: metadata.durationMs,
     width: metadata.width,

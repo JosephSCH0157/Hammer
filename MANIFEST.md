@@ -172,6 +172,10 @@ LocalProvider (IndexedDB + File System Access API where available)
 
 TongsProvider (interface + stubs; implemented later)
 
+Tongs is the authoritative cross-device provider; LocalProvider is local-only.
+
+Asset IDs are provider-namespaced (e.g., local:<uuid>, tongs:<workspaceId>:<uuid>).
+
 TONGS responsibilities (future):
 
 mount registry by role (assets/exports/projects)
@@ -186,7 +190,7 @@ Hammer responsibilities:
 
 never hardcode paths
 
-store only assetId + metadata
+store only AssetRef + metadata
 
 assetId is namespaced by provider id (e.g., local:abc123)
 
@@ -214,7 +218,7 @@ type ProjectDoc = {
   updatedAt: string;
 
   source: {
-    assetId: string;        // media asset in provider
+    asset: AssetRef;        // provider-namespaced asset
     filename: string;
     durationMs: number;
     width: number;
@@ -240,8 +244,15 @@ type ProjectDoc = {
 
   assets: {
     // logical assets referenced by the project (thumbnail panels etc.)
-    referencedAssetIds: string[];
+    referencedAssetIds: AssetId[];
   };
+};
+
+type ProviderId = string; // "local", "tongs", etc.
+type AssetId = string;    // provider-namespaced (e.g., local:uuid)
+type AssetRef = {
+  providerId: ProviderId;
+  assetId: AssetId;
 };
 
 type Transcript = {
@@ -289,9 +300,9 @@ interface RenderEngine {
 }
 
 interface StorageProvider {
-  id: string;
-  putAsset(file: File): Promise<{ assetId: string; meta: any }>;
-  getAsset(assetId: string): Promise<Blob>;
+  providerId: string;
+  putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
+  getAsset(assetId: AssetId): Promise<Blob>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<Array<{ projectId: string; updatedAt: string; title?: string }>>;

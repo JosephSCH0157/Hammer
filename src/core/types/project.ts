@@ -1,10 +1,19 @@
+export type ProviderId = string;
+export type AssetId = string;
+
+/** Asset IDs are provider-namespaced (e.g., local:uuid). */
+export type AssetRef = {
+  providerId: ProviderId;
+  assetId: AssetId;
+};
+
 export type ProjectDoc = {
   schemaVersion: "0.1";
   projectId: string;
   createdAt: string;
   updatedAt: string;
   source: {
-    assetId: string;
+    asset: AssetRef;
     filename: string;
     durationMs: number;
     width: number;
@@ -24,7 +33,7 @@ export type ProjectDoc = {
   };
   shorts: Array<ShortClip>;
   assets: {
-    referencedAssetIds: string[];
+    referencedAssetIds: AssetId[];
   };
 };
 

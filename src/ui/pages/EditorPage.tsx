@@ -24,7 +24,7 @@ export function EditorPage({ project, storage, onBack }: Props) {
 
     const loadAsset = async () => {
       try {
-        const blob = await storage.getAsset(project.source.assetId);
+        const blob = await storage.getAsset(project.source.asset.assetId);
         if (cancelled) {
           return;
         }
@@ -52,7 +52,7 @@ export function EditorPage({ project, storage, onBack }: Props) {
         URL.revokeObjectURL(localUrl);
       }
     };
-  }, [project.source.assetId, storage, retryCount]);
+  }, [project.source.asset.assetId, storage, retryCount]);
   return (
     <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

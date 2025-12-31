@@ -1,4 +1,4 @@
-import type { ProjectDoc } from "../../core/types/project";
+import type { AssetId, ProjectDoc, ProviderId } from "../../core/types/project";
 
 export type ProjectListItem = {
   projectId: string;
@@ -10,10 +10,14 @@ export type ProjectListItem = {
   hasTranscript: boolean;
 };
 
+/** StorageProvider is implemented by Local now; TongsProvider will implement this later. */
 export interface StorageProvider {
-  id: string;
-  putAsset(file: File): Promise<{ assetId: string; meta: any }>;
-  getAsset(assetId: string): Promise<Blob>;
+  /** Stable provider identity (e.g., "local", "tongs"). */
+  providerId: ProviderId;
+  /** assetId must be provider-namespaced (e.g., local:uuid). */
+  putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
+  /** assetId must be provider-namespaced (e.g., local:uuid). */
+  getAsset(assetId: AssetId): Promise<Blob>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<ProjectListItem[]>;
