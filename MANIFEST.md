@@ -53,6 +53,27 @@ Multi-user collaboration (TONGS will enable later)
 
 Full cloud rendering (v0.01 keeps render local in browser)
 
+2.1 Templates (Definition + Non-Goals)
+
+Templates in Hammer are editing templates and presets (Premiere/After Effects style), not UI layout templates.
+
+Explicit non-goals:
+
+Users cannot rearrange, dock, or customize the editor UI layout via templates.
+
+No OBS-style scene/layout templates in v1.
+
+Template categories:
+
+Project templates: applied on new project creation (tracks, intro/outro assets, caption/title styles, audio defaults, export targets).
+
+Apply-to-project templates: apply non-destructive settings/assets to existing projects; show a change summary and support Undo.
+
+Presets (atomic): export presets, caption styles, title/lower-thirds, audio presets, shorts recipes.
+
+Future: Forge-curated fixed workspaces (not user-editable).
+
+3. Product Requirements
 3. Product Requirements
 3.1 Import + Transcript
 
@@ -224,6 +245,8 @@ ProjectDoc (saved as JSON, versioned):
 type ProjectDoc = {
   schemaVersion: "0.1";
   projectId: string;
+  title?: string;
+  thumbnailAssetId?: AssetId;
   createdAt: string;
   updatedAt: string;
 
@@ -275,6 +298,7 @@ type Cut = {
 
 type ProjectListItem = {
   projectId: string;
+  title?: string;
   updatedAt: string;
   filename: string;
   durationMs: number;
@@ -282,6 +306,7 @@ type ProjectListItem = {
   height: number;
   hasTranscript: boolean;
   cutsCount: number;
+  thumbnailAssetId?: AssetId;
 };
 
 type Transcript = {
@@ -366,14 +391,23 @@ Cuts are removed; everything else is kept.
 
 type RenderPlan = {
   sourceAssetId: AssetId;
-  cuts: Array<{ inMs: number; outMs: number }>;
-  output: { format: "mp4"; quality: "draft" | "final" };
+  sourceDurationMs: number;
+  cuts: Array<{ inMs: number; outMs: number }>; // removed ranges when mode === "full"
+  mode: "full" | "clip";
+  clipRangeMs?: { inMs: number; outMs: number }; // kept range when mode === "clip"
 };
 
 type ExportResult = {
   assetId: AssetId;
   filename: string;
   durationMs: number;
+  container: "webm" | "mp4";
+  bytes: number;
+  mime: string;
+  audioIncluded: boolean;
+  videoCodec?: string;
+  audioCodec?: string;
+  engine: "webcodecs" | "mediaRecorder" | "placeholder";
 };
 
 Renderer consumes plan + source media and returns ExportResult.
@@ -488,9 +522,9 @@ hammer/
         Timeline.tsx
       pages/
         EditorPage.tsx
-        ProjectPickerPage.tsx
+        ProjectHubPage.tsx
     styles/
-      app.css
+      hammer.css
     main.tsx
   public/
     icons/
