@@ -19,6 +19,60 @@ const formatDuration = (ms: number): string => formatTimestamp(ms);
 
 const MIN_CUT_DURATION_MS = 500;
 const SPLIT_DEDUPE_WINDOW_MS = 50;
+const TIMELINE_PX_PER_MS = 0.05;
+const THUMB_SPACING_MS = 2000;
+const MAX_THUMBS_PER_PASS = 2;
+
+const waitForMediaEvent = (
+  video: HTMLVideoElement,
+  eventName: keyof HTMLMediaElementEventMap,
+  errorMessage: string
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const handleEvent = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error(errorMessage));
+    };
+    const cleanup = () => {
+      video.removeEventListener(eventName, handleEvent);
+      video.removeEventListener("error", handleError);
+    };
+    video.addEventListener(eventName, handleEvent, { once: true });
+    video.addEventListener("error", handleError, { once: true });
+  });
+
+const ensureMetadata = async (video: HTMLVideoElement): Promise<void> => {
+  if (video.readyState >= 1) {
+    return;
+  }
+  await waitForMediaEvent(video, "loadedmetadata", "Thumbnail metadata failed to load");
+};
+
+const captureThumbnail = async (video: HTMLVideoElement, tMs: number): Promise<string> => {
+  await ensureMetadata(video);
+  const targetSeconds = Math.max(0, tMs / 1000);
+  if (Math.abs(video.currentTime - targetSeconds) > 0.01) {
+    const seeked = waitForMediaEvent(video, "seeked", "Thumbnail seek failed");
+    video.currentTime = targetSeconds;
+    await seeked;
+  }
+  const width = 160;
+  const aspect = video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 16 / 9;
+  const height = Math.max(1, Math.round(width / aspect));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Thumbnail canvas not available");
+  }
+  context.drawImage(video, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.72);
+};
 
 const createId = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -127,6 +181,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [timelineHoverMs, setTimelineHoverMs] = useState<number | null>(null);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [viewportW, setViewportW] = useState(0);
+  const [thumbVersion, setThumbVersion] = useState(0);
   const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
   const [exportIncludeAudio, setExportIncludeAudio] = useState(true);
   const [exportStatus, setExportStatus] = useState<
@@ -140,6 +197,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const thumbVideoRef = useRef<HTMLVideoElement | null>(null);
+  const timelineScrollRef = useRef<HTMLDivElement | null>(null);
+  const thumbCacheRef = useRef<Map<number, string>>(new Map());
+  const thumbQueueRef = useRef<number[]>([]);
+  const thumbBusyRef = useRef(false);
   const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
@@ -202,6 +264,26 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const playheadStyle = { left: `${percentForMs(currentTimeMs)}%` };
   const hoverStyle =
     timelineHoverMs !== null ? { left: `${percentForMs(timelineHoverMs)}%` } : undefined;
+  const timelineContentWidth =
+    safeDurationMs > 0 ? Math.max(viewportW, Math.ceil(safeDurationMs * TIMELINE_PX_PER_MS)) : viewportW;
+  const visibleStartMs = safeDurationMs > 0 ? scrollLeft / TIMELINE_PX_PER_MS : 0;
+  const visibleEndMs = safeDurationMs > 0 ? (scrollLeft + viewportW) / TIMELINE_PX_PER_MS : 0;
+  const thumbTimes = useMemo(() => {
+    if (safeDurationMs <= 0 || viewportW <= 0) {
+      return [];
+    }
+    const startMs = Math.max(0, visibleStartMs - THUMB_SPACING_MS);
+    const endMs = Math.min(safeDurationMs, visibleEndMs + THUMB_SPACING_MS);
+    const first = Math.floor(startMs / THUMB_SPACING_MS) * THUMB_SPACING_MS;
+    const times: number[] = [];
+    for (let tMs = first; tMs <= endMs; tMs += THUMB_SPACING_MS) {
+      times.push(Math.round(tMs));
+      if (times.length > 120) {
+        break;
+      }
+    }
+    return times;
+  }, [safeDurationMs, visibleStartMs, visibleEndMs, viewportW]);
   const exportAudioLabel = exportResult
     ? exportResult.audioIncluded
       ? "mode: audio+video"
@@ -260,6 +342,36 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   }, [project.source.asset.assetId, retryCount, storage]);
 
   useEffect(() => {
+    const node = timelineScrollRef.current;
+    if (!node) {
+      return;
+    }
+    const update = () => setViewportW(node.clientWidth);
+    update();
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(update);
+      resizeObserver.observe(node);
+    } else {
+      window.addEventListener("resize", update);
+    }
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener("resize", update);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    thumbCacheRef.current.clear();
+    thumbQueueRef.current = [];
+    thumbBusyRef.current = false;
+    setThumbVersion((version) => version + 1);
+  }, [videoUrl]);
+
+  useEffect(() => {
     if (import.meta.env.DEV) {
       logCutPlan(project);
     }
@@ -276,6 +388,62 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       setActiveSegmentId(null);
     }
   }, [activeSegmentId, segments]);
+
+  useEffect(() => {
+    if (!videoUrl) {
+      return;
+    }
+    thumbTimes.forEach((tMs) => {
+      if (thumbCacheRef.current.has(tMs)) {
+        return;
+      }
+      if (thumbQueueRef.current.includes(tMs)) {
+        return;
+      }
+      thumbQueueRef.current.push(tMs);
+    });
+    const schedule = () => {
+      if (thumbBusyRef.current) {
+        return;
+      }
+      if (thumbQueueRef.current.length === 0) {
+        return;
+      }
+      thumbBusyRef.current = true;
+      const runner = async () => {
+        const video = thumbVideoRef.current;
+        if (!video) {
+          thumbBusyRef.current = false;
+          return;
+        }
+        const queue = thumbQueueRef.current.splice(0, MAX_THUMBS_PER_PASS);
+        for (const tMs of queue) {
+          try {
+            const dataUrl = await captureThumbnail(video, tMs);
+            thumbCacheRef.current.set(tMs, dataUrl);
+            setThumbVersion((version) => version + 1);
+          } catch {
+            // Skip failed capture.
+          }
+        }
+        thumbBusyRef.current = false;
+        schedule();
+      };
+      const safeGlobal = globalThis as typeof globalThis & {
+        requestIdleCallback?: (callback: () => void) => number;
+      };
+      if (safeGlobal.requestIdleCallback) {
+        safeGlobal.requestIdleCallback(() => {
+          void runner();
+        });
+      } else {
+        safeGlobal.setTimeout(() => {
+          void runner();
+        }, 0);
+      }
+    };
+    schedule();
+  }, [thumbTimes, videoUrl]);
 
   const handleTogglePlay = async () => {
     const video = videoRef.current;
@@ -853,6 +1021,14 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               className="hm-stage-video"
             />
           )}
+          <video
+            ref={thumbVideoRef}
+            className="hm-thumb-video"
+            src={videoUrl ?? undefined}
+            muted
+            playsInline
+            preload="auto"
+          />
         </div>
       </main>
 
@@ -900,80 +1076,106 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         </div>
         <div className="hm-timeline-track">
           <div
-            className="hm-timeline-rail"
-            onMouseMove={handleTimelineMouseMove}
-            onMouseLeave={handleTimelineMouseLeave}
-            onClick={handleTimelineClick}
-            role="slider"
-            aria-label="Timeline"
+            className="hm-timelineScroll"
+            ref={timelineScrollRef}
+            onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
           >
-            {selectionStyle && <div className="hm-timeline-range" style={selectionStyle} />}
-            {hoverStyle && <div className="hm-timeline-ghost" style={hoverStyle} />}
-            {splits.map((split) => (
-              <button
-                key={split.id}
-                type="button"
-                className="hm-split"
-                style={{ left: `${percentForMs(split.tMs)}%` }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleSeekTo(split.tMs);
-                }}
-                aria-label="Jump to split"
-                title="Jump to split"
-              />
-            ))}
-            {markInMs !== null && (
-              <button
-                type="button"
-                className="hm-marker hm-marker--in"
-                style={{ left: `${percentForMs(markInMs)}%` }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleSeekTo(markInMs);
-                }}
-                aria-label="Jump to In marker"
-                title="Jump to In marker"
-              />
-            )}
-            {markOutMs !== null && (
-              <button
-                type="button"
-                className="hm-marker hm-marker--out"
-                style={{ left: `${percentForMs(markOutMs)}%` }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleSeekTo(markOutMs);
-                }}
-                aria-label="Jump to Out marker"
-                title="Jump to Out marker"
-              />
-            )}
-            <div className="hm-timeline-playhead" style={playheadStyle} />
-            {hoverStyle && (
-              <button
-                type="button"
-                className="hm-scissor"
-                style={hoverStyle}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (timelineHoverMs !== null) {
-                    handleSeekTo(timelineHoverMs);
-                    void handleAddSplitAt(timelineHoverMs);
-                  }
-                }}
-                disabled={cutStatus === "loading"}
-                aria-label="Split at playhead"
-                title="Split at playhead"
+            <div className="hm-timelineCanvas" style={{ width: timelineContentWidth }}>
+              <div
+                className="hm-timeline-rail"
+                onMouseMove={handleTimelineMouseMove}
+                onMouseLeave={handleTimelineMouseLeave}
+                onClick={handleTimelineClick}
+                role="slider"
+                aria-label="Timeline"
               >
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                  <circle cx="4" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                  <circle cx="4" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                  <line x1="6" y1="6" x2="14" y2="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="6" y1="10" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
+                <div className="hm-timelineThumbLayer" aria-hidden="true">
+                  {thumbTimes.map((tMs) => {
+                    const thumbUrl = thumbCacheRef.current.get(tMs);
+                    const className = thumbUrl
+                      ? "hm-timelineThumb"
+                      : "hm-timelineThumb hm-timelineThumb--empty";
+                    return (
+                      <div
+                        key={`${tMs}-${thumbVersion}`}
+                        className={className}
+                        style={{
+                          left: `${percentForMs(tMs)}%`,
+                          backgroundImage: thumbUrl ? `url(${thumbUrl})` : undefined,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                {selectionStyle && <div className="hm-timeline-range" style={selectionStyle} />}
+                {hoverStyle && <div className="hm-timeline-ghost" style={hoverStyle} />}
+                {splits.map((split) => (
+                  <button
+                    key={split.id}
+                    type="button"
+                    className="hm-split"
+                    style={{ left: `${percentForMs(split.tMs)}%` }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleSeekTo(split.tMs);
+                    }}
+                    aria-label="Jump to split"
+                    title="Jump to split"
+                  />
+                ))}
+                {markInMs !== null && (
+                  <button
+                    type="button"
+                    className="hm-marker hm-marker--in"
+                    style={{ left: `${percentForMs(markInMs)}%` }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleSeekTo(markInMs);
+                    }}
+                    aria-label="Jump to In marker"
+                    title="Jump to In marker"
+                  />
+                )}
+                {markOutMs !== null && (
+                  <button
+                    type="button"
+                    className="hm-marker hm-marker--out"
+                    style={{ left: `${percentForMs(markOutMs)}%` }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleSeekTo(markOutMs);
+                    }}
+                    aria-label="Jump to Out marker"
+                    title="Jump to Out marker"
+                  />
+                )}
+                <div className="hm-timeline-playhead" style={playheadStyle} />
+                {hoverStyle && (
+                  <button
+                    type="button"
+                    className="hm-scissor"
+                    style={hoverStyle}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (timelineHoverMs !== null) {
+                        handleSeekTo(timelineHoverMs);
+                        void handleAddSplitAt(timelineHoverMs);
+                      }
+                    }}
+                    disabled={cutStatus === "loading"}
+                    aria-label="Split at playhead"
+                    title="Split at playhead"
+                  >
+                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                      <circle cx="4" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="4" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="6" y1="6" x2="14" y2="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <line x1="6" y1="10" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
         <div className="hm-timeline-footer">
