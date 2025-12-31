@@ -13,12 +13,13 @@ const downmixToMono = (buffer: AudioBuffer): Float32Array => {
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
     const data = buffer.getChannelData(channel);
     for (let i = 0; i < length; i += 1) {
-      output[i] += data[i] ?? 0;
+      const current = output[i] ?? 0;
+      output[i] = current + (data[i] ?? 0);
     }
   }
   const scale = 1 / buffer.numberOfChannels;
   for (let i = 0; i < length; i += 1) {
-    output[i] *= scale;
+    output[i] = (output[i] ?? 0) * scale;
   }
   return output;
 };

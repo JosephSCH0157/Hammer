@@ -105,13 +105,20 @@ export const createOfflineWhisperClient = (): OfflineWhisperClient => {
           return;
         }
         if (data.type === "status") {
-          onStatus?.({
-            phase: data.phase,
-            progress: data.progress,
-            message: data.message,
-            cached: data.cached,
-            device: data.device,
-          });
+          const status: OfflineWhisperStatus = { phase: data.phase };
+          if (typeof data.progress === "number") {
+            status.progress = data.progress;
+          }
+          if (typeof data.message === "string") {
+            status.message = data.message;
+          }
+          if (typeof data.cached === "boolean") {
+            status.cached = data.cached;
+          }
+          if (data.device) {
+            status.device = data.device;
+          }
+          onStatus?.(status);
           if (data.phase === "error") {
             cleanup();
             reject(new Error(data.message ?? "Offline transcription failed."));
