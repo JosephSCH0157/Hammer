@@ -8,6 +8,7 @@ Excludes: .git, node_modules
 |-- src/
 |   |-- core/
 |   |   |-- time/
+|   |   |   |-- keptRanges.ts
 |   |   |   +-- ranges.ts
 |   |   +-- types/
 |   |       |-- project.ts

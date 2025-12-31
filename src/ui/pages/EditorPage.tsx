@@ -5,6 +5,7 @@ import type { RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
+import { computeKeptRanges } from "../../core/time/keptRanges";
 
 const formatTimestamp = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -93,6 +94,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const segments = project.transcript?.segments ?? [];
   const cuts = project.edl?.cuts ?? [];
+  const durationMs = project.source.durationMs;
+  const normalizedCuts = normalizeCuts(
+    cuts.map((cut) => ({ inMs: cut.inMs, outMs: cut.outMs })),
+    durationMs
+  );
+  const keptRanges = computeKeptRanges(durationMs, normalizedCuts);
   const canRetry = showRetry || Boolean(assetError?.includes("IndexedDB open blocked"));
   const isCutValid =
     markInMs !== null &&
@@ -345,6 +352,30 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     if (stopAtMs !== null && currentMs >= stopAtMs) {
       video.pause();
       setStopAtMs(null);
+      return;
+    }
+    if (stopAtMs === null) {
+      if (keptRanges.length === 0) {
+        video.pause();
+        return;
+      }
+      const activeCut = normalizedCuts.find(
+        (cut) => currentMs >= cut.inMs && currentMs < cut.outMs
+      );
+      if (activeCut) {
+        const nextMs = activeCut.outMs;
+        if (nextMs >= durationMs) {
+          video.pause();
+          return;
+        }
+        video.currentTime = nextMs / 1000;
+        return;
+      }
+      const lastKept = keptRanges[keptRanges.length - 1];
+      if (lastKept && currentMs >= lastKept.outMs) {
+        video.pause();
+        return;
+      }
     }
     let nextActiveId: string | null = null;
     for (let i = segments.length - 1; i >= 0; i -= 1) {
