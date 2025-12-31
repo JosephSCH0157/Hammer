@@ -203,11 +203,14 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       </p>
 
       <input
+        id="relink-source-input"
         ref={relinkInputRef}
         type="file"
         accept="video/*"
         onChange={handleRelinkChange}
-        style={{ display: "none" }}
+        hidden
+        aria-label="Re-link source media file"
+        title="Re-link source media file"
       />
 
       <div style={{ marginTop: 16 }}>
