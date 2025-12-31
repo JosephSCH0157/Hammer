@@ -59,7 +59,8 @@ export const importTranscriptJson = (jsonText: string): Transcript => {
   const segments: TranscriptSegment[] = rawSegments.map((segment, index) => {
     const raw = segment as RawSeg;
     const startMs = asIntMs(raw.startMs);
-    const endMs = raw.endMs === undefined ? undefined : asIntMs(raw.endMs);
+    const rawEndMs = raw.endMs;
+    let normalizedEndMs: number | undefined;
     const text = asText(raw.text);
     const rawId = typeof raw.id === "string" ? raw.id.trim() : "";
     const id = rawId.length ? rawId : makeId(index);
@@ -70,18 +71,20 @@ export const importTranscriptJson = (jsonText: string): Transcript => {
     if (!text) {
       throw new Error(`Segment ${index + 1}: text must be a non-empty string.`);
     }
-    if (raw.endMs !== undefined) {
-      if (endMs === null) {
+    if (rawEndMs !== undefined) {
+      const parsedEndMs = asIntMs(rawEndMs);
+      if (parsedEndMs === null) {
         throw new Error(`Segment ${index + 1}: endMs must be a number if provided.`);
       }
-      if (endMs <= startMs) {
+      if (parsedEndMs <= startMs) {
         throw new Error(`Segment ${index + 1}: endMs must be > startMs.`);
       }
+      normalizedEndMs = parsedEndMs;
     }
 
     const entry: TranscriptSegment = { id, startMs, text };
-    if (endMs !== undefined) {
-      entry.endMs = endMs;
+    if (normalizedEndMs !== undefined) {
+      entry.endMs = normalizedEndMs;
     }
     return entry;
   });
