@@ -1,5 +1,6 @@
 import type { ProjectDoc } from "../../core/types/project";
 import type { ProjectListItem, StorageProvider } from "./storageProvider";
+import { getAssetRecord, putAssetRecord } from "./idb";
 
 const PROJECT_INDEX_KEY = "hammer.projects.index";
 const PROJECT_DOCS_KEY = "hammer.projects.docs";
@@ -133,6 +134,18 @@ export class LocalStorageProvider implements StorageProvider {
   async putAsset(file: File): Promise<{ assetId: string; meta: any }> {
     const assetId = createId();
     assetStore.set(assetId, file);
+    try {
+      await putAssetRecord({
+        assetId,
+        blob: file,
+        filename: file.name,
+        contentType: file.type,
+        size: file.size,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      // If IndexedDB is unavailable, keep the in-memory fallback.
+    }
     return {
       assetId,
       meta: {
@@ -146,7 +159,23 @@ export class LocalStorageProvider implements StorageProvider {
   async getAsset(assetId: string): Promise<Blob> {
     const asset = assetStore.get(assetId);
     if (!asset) {
-      throw new Error(`Asset not found: ${assetId}`);
+      try {
+        const record = await getAssetRecord(assetId);
+        if (!record) {
+          throw new Error(`Asset not found: ${assetId}`);
+        }
+        assetStore.set(assetId, record.blob);
+        return record.blob;
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Asset not found")) {
+          throw error;
+        }
+        throw new Error(
+          `Asset lookup failed for ${assetId}: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      }
     }
     return asset;
   }
