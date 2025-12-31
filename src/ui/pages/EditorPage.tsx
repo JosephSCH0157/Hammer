@@ -27,8 +27,17 @@ const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
     sourceAssetId: project.source.asset.assetId,
     sourceDurationMs: durationMs,
     cuts: normalizedCuts,
+    mode: "full",
   };
 };
+
+const buildClipPlan = (project: ProjectDoc, cut: Cut): RenderPlan => ({
+  sourceAssetId: project.source.asset.assetId,
+  sourceDurationMs: project.source.durationMs,
+  cuts: [],
+  mode: "clip",
+  clipRangeMs: { inMs: cut.inMs, outMs: cut.outMs },
+});
 
 const logCutPlan = (project: ProjectDoc): void => {
   const plan = buildRenderPlan(project);
@@ -87,6 +96,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [markOutMs, setMarkOutMs] = useState<number | null>(null);
   const [cutStatus, setCutStatus] = useState<"idle" | "loading" | "error">("idle");
   const [cutError, setCutError] = useState<string | null>(null);
+  const [selectedCutId, setSelectedCutId] = useState<string | null>(null);
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
   const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
   const [exportIncludeAudio, setExportIncludeAudio] = useState(true);
@@ -103,6 +113,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const segments = project.transcript?.segments ?? [];
   const cuts = project.edl?.cuts ?? [];
+  const selectedCut = selectedCutId ? cuts.find((cut) => cut.id === selectedCutId) ?? null : null;
   const durationMs = project.source.durationMs;
   const normalizedCuts = normalizeCuts(
     cuts.map((cut) => ({ inMs: cut.inMs, outMs: cut.outMs })),
@@ -134,6 +145,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     preset: "draft",
     includeAudio: exportIncludeAudio,
   };
+  const canExportCut = Boolean(selectedCut) && !exportBusy;
   const exportAudioLabel = exportResult
     ? exportResult.audioIncluded
       ? "mode: audio+video"
@@ -209,6 +221,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setCutStatus("idle");
     setCutError(null);
     setStopAtMs(null);
+    setSelectedCutId(null);
   }, [project.projectId]);
 
   const getCurrentTimeMs = (): number | null => {
@@ -269,6 +282,27 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setExportResult(null);
     try {
       const plan = buildRenderPlan(project);
+      setLastExportRequest(exportRequest);
+      const result = await exportFull(plan, storage, exportRequest, (phase) => setExportStatus(phase));
+      setExportResult(result);
+      setExportStatus("done");
+    } catch (error) {
+      setExportStatus("error");
+      setExportError(error instanceof Error ? error.message : "Export failed.");
+    }
+  };
+
+  const handleExportCut = async () => {
+    if (!selectedCut) {
+      setExportStatus("error");
+      setExportError("Select a cut to export.");
+      return;
+    }
+    setExportStatus("preparing");
+    setExportError(null);
+    setExportResult(null);
+    try {
+      const plan = buildClipPlan(project, selectedCut);
       setLastExportRequest(exportRequest);
       const result = await exportFull(plan, storage, exportRequest, (phase) => setExportStatus(phase));
       setExportResult(result);
@@ -479,6 +513,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           <button onClick={handleExportFull} disabled={exportBusy}>
             Export Full
           </button>
+          <button onClick={handleExportCut} disabled={!canExportCut}>
+            Export Cut
+          </button>
           {exportStatusLabel && <span className="export-status">{exportStatusLabel}</span>}
         </div>
       </div>
@@ -590,18 +627,36 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         ) : (
           <div className="cuts-list">
             {cuts.map((cut) => (
-              <div key={cut.id} className="cut-row">
+              <div
+                key={cut.id}
+                className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
+                onClick={() => setSelectedCutId(cut.id)}
+              >
                 <div className="cut-info">
                   <div className="cut-times">
-                    {formatTimestamp(cut.inMs)} — {formatTimestamp(cut.outMs)}
+                    {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
                   </div>
                   <div className="cut-duration">
                     Duration: {formatDuration(cut.outMs - cut.inMs)}
                   </div>
                 </div>
                 <div className="cut-actions">
-                  <button onClick={() => handlePlayCut(cut)}>Play</button>
-                  <button onClick={() => void handleDeleteCut(cut.id)}>Delete</button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePlayCut(cut);
+                    }}
+                  >
+                    Play
+                  </button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDeleteCut(cut.id);
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}

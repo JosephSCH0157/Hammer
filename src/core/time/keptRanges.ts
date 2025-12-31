@@ -1,4 +1,4 @@
-import type { CutRangeMs } from "../types/render";
+import type { CutRangeMs, RenderPlan } from "../types/render";
 
 export const computeKeptRanges = (
   durationMs: number,
@@ -24,6 +24,29 @@ export const computeKeptRanges = (
   }
   return kept;
 };
+
+export const computeKeptRangesForPlan = (plan: RenderPlan): CutRangeMs[] => {
+  if (plan.mode === "clip") {
+    const clip = plan.clipRangeMs;
+    if (!clip) {
+      return [];
+    }
+    const maxDuration = Number.isFinite(plan.sourceDurationMs) && plan.sourceDurationMs > 0 ? plan.sourceDurationMs : 0;
+    if (maxDuration === 0) {
+      return [];
+    }
+    const inMs = Math.max(0, Math.min(clip.inMs, maxDuration));
+    const outMs = Math.max(0, Math.min(clip.outMs, maxDuration));
+    if (outMs <= inMs) {
+      return [];
+    }
+    return [{ inMs, outMs }];
+  }
+  return computeKeptRanges(plan.sourceDurationMs, plan.cuts);
+};
+
+export const computeKeptDurationFromRanges = (ranges: CutRangeMs[]): number =>
+  ranges.reduce((sum, range) => sum + Math.max(0, range.outMs - range.inMs), 0);
 
 export const mapSourceMsToKeptMs = (
   sourceMs: number,

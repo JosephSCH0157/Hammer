@@ -22,6 +22,8 @@ export type RenderPlan = {
   sourceAssetId: AssetId;
   sourceDurationMs: number;
   cuts: CutRangeMs[];
+  mode: "full" | "clip";
+  clipRangeMs?: CutRangeMs;
 };
 
 export type ExportResult = {

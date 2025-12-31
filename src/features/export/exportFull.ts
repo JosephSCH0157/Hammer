@@ -1,6 +1,6 @@
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
-import { computeKeptDurationMs } from "../../core/time/ranges";
+import { computeKeptDurationFromRanges, computeKeptRangesForPlan } from "../../core/time/keptRanges";
 import { encodeWithMediaRecorder } from "./engines/mediaRecorder";
 import { createPlaceholderExport } from "./engines/placeholder";
 import { canEncodeWebmWithWebCodecs, encodeWithWebCodecsWebm } from "./engines/webcodecsWebm";
@@ -20,9 +20,18 @@ const extensionForMime = (mime: string): string => {
   return "mp4";
 };
 
-const buildFilename = (mime: string): string => {
+const buildFilename = (
+  mime: string,
+  mode: RenderPlan["mode"],
+  clipRange?: { inMs: number; outMs: number }
+): string => {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const extension = extensionForMime(mime);
+  if (mode === "clip" && clipRange) {
+    const inMs = Math.round(clipRange.inMs);
+    const outMs = Math.round(clipRange.outMs);
+    return `hammer_clip_${stamp}_${inMs}-${outMs}.${extension}`;
+  }
   return `hammer_export_${stamp}.${extension}`;
 };
 
@@ -60,7 +69,8 @@ export const exportFull = async (
   onPhase?: (phase: ExportPhase) => void
 ): Promise<ExportResult> => {
   onPhase?.("preparing");
-  const keptDurationMs = computeKeptDurationMs(plan.sourceDurationMs, plan.cuts);
+  const keptRanges = computeKeptRangesForPlan(plan);
+  const keptDurationMs = computeKeptDurationFromRanges(keptRanges);
 
   onPhase?.("encoding");
   const { blob, mime, engine, audioIncluded, videoCodec, audioCodec } = await encodeWithFallbacks(
@@ -71,7 +81,8 @@ export const exportFull = async (
   );
 
   onPhase?.("saving");
-  const filename = buildFilename(mime);
+  const clipRange = plan.mode === "clip" && keptRanges.length > 0 ? keptRanges[0] : undefined;
+  const filename = buildFilename(mime, plan.mode, clipRange);
   const file = new File([blob], filename, { type: mime });
   const asset = await storage.putAsset(file);
 

@@ -1,6 +1,6 @@
 import type { ExportRequest, RenderPlan } from "../../../core/types/render";
 import type { StorageProvider } from "../../../providers/storage/storageProvider";
-import { computeKeptRanges } from "../../../core/time/keptRanges";
+import { computeKeptRangesForPlan } from "../../../core/time/keptRanges";
 import {
   ALL_FORMATS,
   AudioSample,
@@ -91,12 +91,12 @@ export const encodeWithWebCodecsWebm = async (
   if (!hasWebCodecs()) {
     throw new Error("WebCodecs not supported");
   }
-  const keptRanges = computeKeptRanges(plan.sourceDurationMs, plan.cuts);
+  const keptRanges = computeKeptRangesForPlan(plan);
   if (keptRanges.length === 0) {
     throw new Error("No kept ranges to export");
   }
   const keptRangesWithOffset = buildRangeOffsets(keptRanges);
-  const needsRetiming = plan.cuts.length > 0;
+  const needsRetiming = plan.mode === "clip" || plan.cuts.length > 0;
   const quality = qualityForPreset(request.preset);
 
   const sourceBlob = await storage.getAsset(plan.sourceAssetId);

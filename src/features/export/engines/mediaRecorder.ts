@@ -1,6 +1,6 @@
 import type { ExportContainer, ExportRequest, RenderPlan } from "../../../core/types/render";
 import type { StorageProvider } from "../../../providers/storage/storageProvider";
-import { computeKeptRanges } from "../../../core/time/keptRanges";
+import { computeKeptRangesForPlan } from "../../../core/time/keptRanges";
 
 const pickRecorderMimeType = (container: ExportContainer): string => {
   if (typeof MediaRecorder === "undefined") {
@@ -132,7 +132,7 @@ export const encodeWithMediaRecorder = async (
   if (typeof document === "undefined") {
     throw new Error("Encoding requires a browser environment");
   }
-  const keptRanges = computeKeptRanges(plan.sourceDurationMs, plan.cuts);
+  const keptRanges = computeKeptRangesForPlan(plan);
   if (keptRanges.length === 0) {
     throw new Error("No kept ranges to export");
   }
