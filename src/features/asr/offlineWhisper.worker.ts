@@ -48,6 +48,13 @@ const resolveDevice = (): "webgpu" | "wasm" => {
   return "wasm";
 };
 
+const selectDeviceForModel = (modelId: string): "webgpu" | "wasm" => {
+  if (modelId.toLowerCase().includes("whisper")) {
+    return "wasm";
+  }
+  return resolveDevice();
+};
+
 const extractSegments = (result: any): WorkerSegment[] => {
   const chunks = Array.isArray(result?.chunks)
     ? result.chunks
@@ -97,7 +104,7 @@ const getPipeline = async (
   if (pipelinePromise && pipelineModel === normalizedModel) {
     return { pipe: await pipelinePromise, cached: lastCached, device: lastDevice };
   }
-  const device = resolveDevice();
+  const device = selectDeviceForModel(normalizedModel);
   lastDevice = device;
   let sawDownload = false;
   pipelineModel = normalizedModel;
