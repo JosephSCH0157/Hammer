@@ -12,11 +12,10 @@ export type ExportPreset = "draft" | "standard" | "high";
 export type ExportRequest = {
   container: ExportContainer;
   preset: ExportPreset;
+  includeAudio: boolean;
   width?: number;
   height?: number;
   fps?: number;
-  videoBitrate?: number;
-  audioBitrate?: number;
 };
 
 export type RenderPlan = {
@@ -27,8 +26,10 @@ export type RenderPlan = {
 
 export type ExportResult = {
   assetId: AssetId;
+  container: ExportContainer;
   filename: string;
   durationMs: number;
   bytes: number;
   mime: string;
+  engine: "webcodecs" | "mediaRecorder" | "placeholder";
 };

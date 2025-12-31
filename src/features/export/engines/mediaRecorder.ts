@@ -1,4 +1,4 @@
-import type { ExportContainer, RenderPlan } from "../../../core/types/render";
+import type { ExportContainer, ExportRequest, RenderPlan } from "../../../core/types/render";
 import type { StorageProvider } from "../../../providers/storage/storageProvider";
 import { computeKeptRanges } from "../../../core/time/keptRanges";
 
@@ -120,8 +120,8 @@ const playUntilMs = (video: HTMLVideoElement, endMs: number): Promise<void> =>
 export const encodeWithMediaRecorder = async (
   plan: RenderPlan,
   storage: StorageProvider,
-  container: ExportContainer
-): Promise<{ blob: Blob; mime: string }> => {
+  request: ExportRequest
+): Promise<{ blob: Blob; mime: string; engine: "mediaRecorder" }> => {
   if (typeof document === "undefined") {
     throw new Error("Encoding requires a browser environment");
   }
@@ -149,7 +149,7 @@ export const encodeWithMediaRecorder = async (
   try {
     await waitForVideoEvent(video, "loadedmetadata", "Video metadata failed to load");
     const stream = capture.call(video);
-    const mime = pickRecorderMimeType(container);
+    const mime = pickRecorderMimeType(request.container);
     const recorder = new MediaRecorder(stream, { mimeType: mime });
     const chunks: BlobPart[] = [];
 
@@ -164,6 +164,13 @@ export const encodeWithMediaRecorder = async (
       }
     };
 
+    if (!request.includeAudio) {
+      stream.getAudioTracks().forEach((track) => {
+        stream.removeTrack(track);
+        track.stop();
+      });
+    }
+
     recorder.start();
 
     for (const range of keptRanges) {
@@ -177,6 +184,7 @@ export const encodeWithMediaRecorder = async (
     return {
       blob: new Blob(chunks, { type: mime }),
       mime,
+      engine: "mediaRecorder",
     };
   } finally {
     video.pause();

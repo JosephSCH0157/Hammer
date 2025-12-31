@@ -1,4 +1,4 @@
-import type { ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
+import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { computeKeptDurationMs } from "../../core/time/ranges";
 import { encodeWithMediaRecorder } from "./engines/mediaRecorder";
@@ -6,6 +6,11 @@ import { createPlaceholderExport } from "./engines/placeholder";
 import { canEncodeWebmWithWebCodecs, encodeWithWebCodecsWebm } from "./engines/webcodecsWebm";
 
 export type ExportPhase = "preparing" | "encoding" | "saving";
+
+const containerForMime = (mime: string): ExportContainer => {
+  const base = mime.split(";")[0]?.trim();
+  return base === "video/webm" ? "webm" : "mp4";
+};
 
 const extensionForMime = (mime: string): string => {
   const base = mime.split(";")[0]?.trim();
@@ -26,7 +31,7 @@ const encodeWithFallbacks = async (
   storage: StorageProvider,
   request: ExportRequest,
   keptDurationMs: number
-): Promise<{ blob: Blob; mime: string }> => {
+): Promise<{ blob: Blob; mime: string; engine: ExportResult["engine"] }> => {
   if (request.container === "webm" && canEncodeWebmWithWebCodecs()) {
     try {
       return await encodeWithWebCodecsWebm(plan, storage, request);
@@ -35,9 +40,9 @@ const encodeWithFallbacks = async (
     }
   }
   try {
-    return await encodeWithMediaRecorder(plan, storage, request.container);
+    return await encodeWithMediaRecorder(plan, storage, request);
   } catch {
-    return createPlaceholderExport(plan, keptDurationMs);
+    return createPlaceholderExport(plan, keptDurationMs, request.container);
   }
 };
 
@@ -51,7 +56,7 @@ export const exportFull = async (
   const keptDurationMs = computeKeptDurationMs(plan.sourceDurationMs, plan.cuts);
 
   onPhase?.("encoding");
-  const { blob, mime } = await encodeWithFallbacks(plan, storage, request, keptDurationMs);
+  const { blob, mime, engine } = await encodeWithFallbacks(plan, storage, request, keptDurationMs);
 
   onPhase?.("saving");
   const filename = buildFilename(mime);
@@ -60,9 +65,11 @@ export const exportFull = async (
 
   return {
     assetId: asset.assetId,
+    container: containerForMime(mime),
     filename,
     durationMs: keptDurationMs,
     bytes: blob.size,
     mime,
+    engine,
   };
 };

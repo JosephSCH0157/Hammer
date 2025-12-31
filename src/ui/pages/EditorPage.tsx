@@ -125,11 +125,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           : exportStatus === "done"
             ? "Export ready"
             : exportStatus === "error"
-            ? "Export failed"
-            : "";
+              ? "Export failed"
+              : "";
   const exportRequest: ExportRequest = {
     container: exportContainer,
     preset: "draft",
+    includeAudio: true,
   };
 
   useEffect(() => {
@@ -466,7 +467,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       {exportStatus === "done" && exportResult && (
         <p className="export-summary">
           Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)}, {exportResult.bytes}{" "}
-          bytes, {exportResult.mime})
+          bytes, {exportResult.mime}, {exportResult.container})
+          {import.meta.env.DEV ? `, engine: ${exportResult.engine}` : ""}
         </p>
       )}
 

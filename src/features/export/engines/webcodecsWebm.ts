@@ -15,7 +15,7 @@ export const encodeWithWebCodecsWebm = async (
   _plan: RenderPlan,
   _storage: StorageProvider,
   _request: ExportRequest
-): Promise<{ blob: Blob; mime: string }> => {
+): Promise<{ blob: Blob; mime: string; engine: "webcodecs" }> => {
   if (!hasWebCodecs()) {
     throw new Error("WebCodecs not supported");
   }
