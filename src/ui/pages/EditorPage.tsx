@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
-import type { Cut, ProjectDoc, Split, Transcript, TranscriptSegment } from "../../core/types/project";
+import type { Asset, Cut, ProjectDoc, Split, Transcript, TranscriptSegment } from "../../core/types/project";
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
@@ -72,6 +72,20 @@ const captureThumbnail = async (video: HTMLVideoElement, tMs: number): Promise<s
   }
   context.drawImage(video, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", 0.72);
+};
+
+const formatBytes = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return "0 B";
+  }
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
 const createId = (): string => {
@@ -193,18 +207,22 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [lastExportRequest, setLastExportRequest] = useState<ExportRequest | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [assetImportError, setAssetImportError] = useState<string | null>(null);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
+  const importAssetsRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const thumbVideoRef = useRef<HTMLVideoElement | null>(null);
   const timelineScrollRef = useRef<HTMLDivElement | null>(null);
   const thumbCacheRef = useRef<Map<number, string>>(new Map());
   const thumbQueueRef = useRef<number[]>([]);
   const thumbBusyRef = useRef(false);
+  const assetPreviewMapRef = useRef<Map<string, string>>(new Map());
   const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
+  const assets = useMemo(() => project.assets ?? [], [project.assets]);
   const selectedCut = selectedCutId ? cuts.find((cut) => cut.id === selectedCutId) ?? null : null;
   const durationMs = project.source.durationMs;
   const normalizedCuts = normalizeCuts(
@@ -360,6 +378,14 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       }
     };
   }, [project.source.asset.assetId, retryCount, storage]);
+
+  useEffect(() => {
+    const previewMap = assetPreviewMapRef.current;
+    return () => {
+      previewMap.forEach((url) => URL.revokeObjectURL(url));
+      previewMap.clear();
+    };
+  }, [project.projectId]);
 
   useEffect(() => {
     const node = timelineScrollRef.current;
@@ -785,6 +811,50 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     await handleExport(plan);
   };
 
+  const handleImportAssetsClick = () => {
+    importAssetsRef.current?.click();
+  };
+
+  const handleImportAssetsChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.currentTarget.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+    setAssetImportError(null);
+    const now = new Date().toISOString();
+    const newAssets: Asset[] = files.map((file) => {
+      const kind = file.type.startsWith("image/") ? "image" : "video";
+      const id = createId();
+      const previewUrl = URL.createObjectURL(file);
+      assetPreviewMapRef.current.set(id, previewUrl);
+      return {
+        id,
+        kind,
+        name: file.name,
+        size: file.size,
+        mime: file.type,
+        createdAt: now,
+      };
+    });
+    try {
+      const updated = await storage.setAssets(project.projectId, [...assets, ...newAssets]);
+      onProjectUpdated(updated);
+    } catch (error) {
+      newAssets.forEach((asset) => {
+        const url = assetPreviewMapRef.current.get(asset.id);
+        if (url) {
+          URL.revokeObjectURL(url);
+          assetPreviewMapRef.current.delete(asset.id);
+        }
+      });
+      setAssetImportError(
+        error instanceof Error ? error.message : "Unable to import assets."
+      );
+    } finally {
+      event.currentTarget.value = "";
+    }
+  };
+
   return (
     <div className="hm-editor">
       <div className="hm-topbar">
@@ -864,6 +934,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           hidden
           aria-label="Import transcript JSON"
           title="Import transcript JSON"
+        />
+        <input
+          ref={importAssetsRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          onChange={handleImportAssetsChange}
+          hidden
+          aria-label="Import assets"
+          title="Import assets"
         />
       </div>
 
@@ -1056,13 +1136,41 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         <div className="hm-assetbinHeader">
           <div className="hm-assetbinTitle">Assets</div>
           <div className="hm-assetbinActions">
-            <button className="hm-button hm-button--compact" disabled>
+            <button className="hm-button hm-button--compact" onClick={handleImportAssetsClick}>
               Import
             </button>
           </div>
         </div>
         <div className="hm-assetbinBody">
-          <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
+          {assetImportError && <div className="hm-asset-error">{assetImportError}</div>}
+          {assets.length === 0 ? (
+            <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
+          ) : (
+            <div className="hm-asset-list">
+              {assets.map((asset) => {
+                const previewUrl = assetPreviewMapRef.current.get(asset.id);
+                return (
+                  <div key={asset.id} className="hm-asset-card">
+                    <div className="hm-asset-thumb">
+                      {previewUrl && asset.kind === "image" ? (
+                        <img src={previewUrl} alt={asset.name} />
+                      ) : (
+                        <div className="hm-asset-thumb-fallback">
+                          {asset.kind === "video" ? "VIDEO" : "IMAGE"}
+                        </div>
+                      )}
+                    </div>
+                    <div className="hm-asset-info">
+                      <div className="hm-asset-name">{asset.name}</div>
+                      <div className="hm-asset-meta">
+                        {asset.kind} · {formatBytes(asset.size)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </aside>
 

@@ -24,6 +24,7 @@ export type ProjectDoc = {
   };
   transcript?: Transcript;
   splits?: Split[];
+  assets?: Asset[];
   edl: {
     cuts: Cut[];
   };
@@ -35,9 +36,6 @@ export type ProjectDoc = {
     captions?: { enabled: boolean; styleId?: string };
   };
   shorts: Array<ShortClip>;
-  assets: {
-    referencedAssetIds: AssetId[];
-  };
 };
 
 export type TranscriptSegment = {
@@ -66,6 +64,16 @@ export type Split = {
   tMs: number;
   label?: string;
   kind?: "manual" | "auto";
+};
+
+export type Asset = {
+  id: string;
+  kind: "image" | "video";
+  name: string;
+  size: number;
+  mime: string;
+  createdAt: string;
+  durationMs?: number;
 };
 
 export type ShortClip = {

@@ -50,9 +50,7 @@ export const importMedia = async (
       video: {},
     },
     shorts: [],
-    assets: {
-      referencedAssetIds: [],
-    },
+    assets: [],
   };
   if (title?.trim()) {
     doc.title = title.trim();

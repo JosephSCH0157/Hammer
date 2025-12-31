@@ -1,4 +1,4 @@
-import type { AssetRef, Cut, ProjectDoc, ProviderId, Split, Transcript } from "../../core/types/project";
+import type { Asset, AssetRef, Cut, ProjectDoc, ProviderId, Split, Transcript } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
@@ -31,6 +31,7 @@ const buildSummary = (doc: ProjectDoc): ProjectListItem => {
     hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
     cutsCount: doc.edl?.cuts?.length ?? 0,
     splitsCount: doc.splits?.length ?? 0,
+    assetsCount: doc.assets?.length ?? 0,
   };
   if (doc.title) {
     summary.title = doc.title;
@@ -182,6 +183,48 @@ const normalizeSplits = (
   return { splits: normalized, migrated: normalized.length !== splits.length };
 };
 
+type LegacyAssets = { referencedAssetIds?: string[] };
+
+const normalizeAssets = (
+  assets: ProjectDoc["assets"] | LegacyAssets | undefined
+): { assets: Asset[]; migrated: boolean } => {
+  if (!assets) {
+    return { assets: [], migrated: false };
+  }
+  if (!Array.isArray(assets)) {
+    return { assets: [], migrated: true };
+  }
+  const normalized = assets.reduce<Asset[]>((acc, asset) => {
+    if (!asset || typeof asset !== "object") {
+      return acc;
+    }
+    if (
+      typeof asset.id !== "string" ||
+      typeof asset.name !== "string" ||
+      typeof asset.size !== "number"
+    ) {
+      return acc;
+    }
+    if (asset.kind !== "image" && asset.kind !== "video") {
+      return acc;
+    }
+    const entry: Asset = {
+      id: asset.id,
+      kind: asset.kind,
+      name: asset.name,
+      size: asset.size,
+      mime: typeof asset.mime === "string" ? asset.mime : "",
+      createdAt: typeof asset.createdAt === "string" ? asset.createdAt : new Date().toISOString(),
+    };
+    if (typeof asset.durationMs === "number") {
+      entry.durationMs = asset.durationMs;
+    }
+    acc.push(entry);
+    return acc;
+  }, []);
+  return { assets: normalized, migrated: normalized.length !== assets.length };
+};
+
 const normalizeProjectDocs = (
   docs: Record<string, ProjectDoc | LegacyProjectDoc>,
   providerId: ProviderId
@@ -192,13 +235,16 @@ const normalizeProjectDocs = (
     const normalizedSource = normalizeSource(doc.source, providerId);
     const normalizedEdl = normalizeCuts(doc.edl);
     const normalizedSplits = normalizeSplits(doc.splits);
+    const normalizedAssets = normalizeAssets(doc.assets);
     if (!normalizedSource) {
       normalized[projectId] = {
         ...(doc as ProjectDoc),
         edl: normalizedEdl.edl,
         splits: normalizedSplits.splits,
+        assets: normalizedAssets.assets,
       };
-      migrated = migrated || normalizedEdl.migrated || normalizedSplits.migrated;
+      migrated =
+        migrated || normalizedEdl.migrated || normalizedSplits.migrated || normalizedAssets.migrated;
       return;
     }
     normalized[projectId] = {
@@ -206,9 +252,14 @@ const normalizeProjectDocs = (
       source: normalizedSource.source,
       edl: normalizedEdl.edl,
       splits: normalizedSplits.splits,
+      assets: normalizedAssets.assets,
     };
     migrated =
-      migrated || normalizedSource.migrated || normalizedEdl.migrated || normalizedSplits.migrated;
+      migrated ||
+      normalizedSource.migrated ||
+      normalizedEdl.migrated ||
+      normalizedSplits.migrated ||
+      normalizedAssets.migrated;
   });
   return { docs: normalized, migrated };
 };
@@ -294,7 +345,10 @@ const loadProjectIndex = (): Record<string, ProjectListItem> => {
     try {
       const parsed = JSON.parse(raw) as Record<string, ProjectListItem>;
       const needsRebuild = Object.values(parsed).some(
-        (item) => typeof item.cutsCount !== "number" || typeof item.splitsCount !== "number"
+        (item) =>
+          typeof item.cutsCount !== "number" ||
+          typeof item.splitsCount !== "number" ||
+          typeof item.assetsCount !== "number"
       );
       if (!needsRebuild) {
         return parsed;
@@ -501,6 +555,26 @@ export class LocalStorageProvider implements StorageProvider {
     const updatedDoc: ProjectDoc = {
       ...existing,
       splits: sortedSplits,
+      updatedAt: new Date().toISOString(),
+    };
+    docs[projectId] = updatedDoc;
+    index[projectId] = buildSummary(updatedDoc);
+    saveProjectDocs(docs);
+    saveProjectIndex(index);
+    return updatedDoc;
+  }
+
+  async setAssets(projectId: string, assets: Asset[]): Promise<ProjectDoc> {
+    const docs = loadProjectDocs();
+    const index = loadProjectIndex();
+    const existing = docs[projectId];
+    if (!existing) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    const sortedAssets = [...assets].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const updatedDoc: ProjectDoc = {
+      ...existing,
+      assets: sortedAssets,
       updatedAt: new Date().toISOString(),
     };
     docs[projectId] = updatedDoc;
