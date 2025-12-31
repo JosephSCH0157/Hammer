@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
-import type { ExportResult, RenderPlan } from "../../core/types/render";
+import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
@@ -27,7 +27,6 @@ const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
     sourceAssetId: project.source.asset.assetId,
     sourceDurationMs: durationMs,
     cuts: normalizedCuts,
-    output: { format: "mp4", quality: "draft" },
   };
 };
 
@@ -89,6 +88,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [cutStatus, setCutStatus] = useState<"idle" | "loading" | "error">("idle");
   const [cutError, setCutError] = useState<string | null>(null);
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
+  const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
   const [exportStatus, setExportStatus] = useState<
     "idle" | "preparing" | "encoding" | "saving" | "done" | "error"
   >("idle");
@@ -125,8 +125,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           : exportStatus === "done"
             ? "Export ready"
             : exportStatus === "error"
-              ? "Export failed"
-              : "";
+            ? "Export failed"
+            : "";
+  const exportRequest: ExportRequest = {
+    container: exportContainer,
+    preset: "draft",
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -252,7 +256,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setExportResult(null);
     try {
       const plan = buildRenderPlan(project);
-      const result = await exportFull(plan, storage, (phase) => setExportStatus(phase));
+      const result = await exportFull(plan, storage, exportRequest, (phase) => setExportStatus(phase));
       setExportResult(result);
       setExportStatus("done");
     } catch (error) {
@@ -434,6 +438,21 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         <button onClick={onBack}>← Back</button>
         <h1 className="hammer-title">Hammer v0.01</h1>
         <div className="hammer-header-actions">
+          <label className="export-field">
+            <span className="export-field-label">Export format</span>
+            <select
+              value={exportContainer}
+              onChange={(event) => setExportContainer(event.target.value as ExportContainer)}
+              disabled={exportBusy}
+              aria-label="Export format"
+              title="MP4 export is coming soon"
+            >
+              <option value="webm">WebM (Fast)</option>
+              <option value="mp4" disabled>
+                MP4 (Coming soon)
+              </option>
+            </select>
+          </label>
           <button onClick={handleExportFull} disabled={exportBusy}>
             Export Full
           </button>

@@ -26,6 +26,21 @@
   font-size: 12px;
 }
 
+.export-field {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.export-field-label {
+  opacity: 0.8;
+}
+
+.export-field select {
+  font-size: 12px;
+}
+
 .export-summary {
   margin-top: 8px;
   opacity: 0.8;

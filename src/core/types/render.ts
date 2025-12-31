@@ -5,16 +5,24 @@ export type CutRangeMs = {
   outMs: number;
 };
 
-export type RenderOutputConfig = {
-  format: "mp4";
-  quality: "draft" | "final";
+export type ExportContainer = "webm" | "mp4";
+
+export type ExportPreset = "draft" | "standard" | "high";
+
+export type ExportRequest = {
+  container: ExportContainer;
+  preset: ExportPreset;
+  width?: number;
+  height?: number;
+  fps?: number;
+  videoBitrate?: number;
+  audioBitrate?: number;
 };
 
 export type RenderPlan = {
   sourceAssetId: AssetId;
   sourceDurationMs: number;
   cuts: CutRangeMs[];
-  output: RenderOutputConfig;
 };
 
 export type ExportResult = {
