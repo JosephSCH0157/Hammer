@@ -41,6 +41,7 @@ export const importMedia = async (
     createdAt: now,
     updatedAt: now,
     source,
+    splits: [],
     edl: {
       cuts: [],
     },

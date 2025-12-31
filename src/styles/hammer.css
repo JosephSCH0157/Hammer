@@ -534,6 +534,25 @@ textarea:focus {
   background: var(--forge-accent-2);
 }
 
+.hm-split {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 18px;
+  border: none;
+  padding: 0;
+  background: var(--forge-text);
+  opacity: 0.6;
+  transform: translateX(-50%);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.hm-split:hover {
+  opacity: 0.9;
+  box-shadow: 0 0 0 4px rgba(91, 140, 255, 0.2);
+}
+
 .hm-timeline-ghost {
   position: absolute;
   top: -6px;

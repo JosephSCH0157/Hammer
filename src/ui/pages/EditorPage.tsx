@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
-import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
+import type { Cut, ProjectDoc, Split, Transcript, TranscriptSegment } from "../../core/types/project";
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
@@ -18,6 +18,7 @@ const formatTimestamp = (ms: number): string => {
 const formatDuration = (ms: number): string => formatTimestamp(ms);
 
 const MIN_CUT_DURATION_MS = 500;
+const SPLIT_DEDUPE_WINDOW_MS = 50;
 
 const createId = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -141,6 +142,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
+  const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const selectedCut = selectedCutId ? cuts.find((cut) => cut.id === selectedCutId) ?? null : null;
   const durationMs = project.source.durationMs;
   const normalizedCuts = normalizeCuts(
@@ -501,31 +503,26 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     }
   };
 
-  const buildQuickCutRange = (ms: number): { inMs: number; outMs: number } | null => {
+  const handleAddSplitAt = async (ms: number) => {
     if (safeDurationMs <= 0) {
-      return null;
-    }
-    const minSpan = Math.min(MIN_CUT_DURATION_MS, safeDurationMs);
-    if (minSpan <= 0) {
-      return null;
-    }
-    if (ms + minSpan <= safeDurationMs) {
-      return { inMs: ms, outMs: ms + minSpan };
-    }
-    if (ms - minSpan >= 0) {
-      return { inMs: ms - minSpan, outMs: ms };
-    }
-    return { inMs: 0, outMs: minSpan };
-  };
-
-  const handleAddCutAt = async (ms: number) => {
-    const clamped = safeDurationMs > 0 ? Math.min(Math.max(ms, 0), safeDurationMs) : ms;
-    const range = buildQuickCutRange(clamped);
-    if (!range) {
-      setCutError("Unable to add cut at this position.");
       return;
     }
-    await addCutRange(range.inMs, range.outMs);
+    const clamped = Math.min(Math.max(ms, 0), safeDurationMs);
+    if (splits.some((split) => Math.abs(split.tMs - clamped) <= SPLIT_DEDUPE_WINDOW_MS)) {
+      return;
+    }
+    setCutStatus("loading");
+    setCutError(null);
+    try {
+      const nextSplits: Split[] = [...splits, { id: createId(), tMs: clamped, kind: "manual" }];
+      nextSplits.sort((a, b) => a.tMs - b.tMs);
+      const updated = await storage.setSplits(project.projectId, nextSplits);
+      onProjectUpdated(updated);
+      setCutStatus("idle");
+    } catch (error) {
+      setCutStatus("error");
+      setCutError(error instanceof Error ? error.message : "Unable to save split.");
+    }
   };
 
   const handleAddCut = async () => {
@@ -901,6 +898,20 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           >
             {selectionStyle && <div className="hm-timeline-range" style={selectionStyle} />}
             {hoverStyle && <div className="hm-timeline-ghost" style={hoverStyle} />}
+            {splits.map((split) => (
+              <button
+                key={split.id}
+                type="button"
+                className="hm-split"
+                style={{ left: `${percentForMs(split.tMs)}%` }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleSeekTo(split.tMs);
+                }}
+                aria-label="Jump to split"
+                title="Jump to split"
+              />
+            ))}
             {markInMs !== null && (
               <button
                 type="button"
@@ -937,7 +948,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                   event.stopPropagation();
                   if (timelineHoverMs !== null) {
                     handleSeekTo(timelineHoverMs);
-                    void handleAddCutAt(timelineHoverMs);
+                    void handleAddSplitAt(timelineHoverMs);
                   }
                 }}
                 disabled={cutStatus === "loading"}

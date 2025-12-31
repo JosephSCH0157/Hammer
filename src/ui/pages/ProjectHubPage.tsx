@@ -18,6 +18,7 @@ const toSummary = (item: ProjectListItem): ProjectSummary => {
     updatedAt: item.updatedAt,
     durationMs: item.durationMs,
     cutsCount: item.cutsCount,
+    splitsCount: item.splitsCount,
   };
   if (item.thumbnailAssetId) {
     summary.thumbnailAssetId = item.thumbnailAssetId;

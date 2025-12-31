@@ -6,6 +6,7 @@ export type ProjectSummary = {
   updatedAt: string;
   durationMs?: number;
   cutsCount?: number;
+  splitsCount?: number;
   thumbnailAssetId?: string;
 };
 

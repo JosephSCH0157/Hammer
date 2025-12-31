@@ -23,6 +23,7 @@ export type ProjectDoc = {
     fps?: number;
   };
   transcript?: Transcript;
+  splits?: Split[];
   edl: {
     cuts: Cut[];
   };
@@ -58,6 +59,13 @@ export type Cut = {
   outMs: number;
   label?: string;
   createdAt?: string;
+};
+
+export type Split = {
+  id: string;
+  tMs: number;
+  label?: string;
+  kind?: "manual" | "auto";
 };
 
 export type ShortClip = {

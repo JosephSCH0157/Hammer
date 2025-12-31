@@ -1,4 +1,4 @@
-import type { AssetId, Cut, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
+import type { AssetId, Cut, ProjectDoc, ProviderId, Split, Transcript } from "../../core/types/project";
 
 export type ProjectListItem = {
   projectId: string;
@@ -10,6 +10,7 @@ export type ProjectListItem = {
   height: number;
   hasTranscript: boolean;
   cutsCount: number;
+  splitsCount: number;
   thumbnailAssetId?: AssetId;
 };
 
@@ -33,6 +34,8 @@ export interface StorageProvider {
   setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
   /** Set edit decision cuts for a project. */
   setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc>;
+  /** Set split markers for a project. */
+  setSplits(projectId: string, splits: Split[]): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<ProjectListItem[]>;

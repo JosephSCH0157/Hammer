@@ -1,4 +1,4 @@
-import type { AssetRef, Cut, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
+import type { AssetRef, Cut, ProjectDoc, ProviderId, Split, Transcript } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
@@ -30,6 +30,7 @@ const buildSummary = (doc: ProjectDoc): ProjectListItem => {
     height: doc.source.height,
     hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
     cutsCount: doc.edl?.cuts?.length ?? 0,
+    splitsCount: doc.splits?.length ?? 0,
   };
   if (doc.title) {
     summary.title = doc.title;
@@ -151,6 +152,36 @@ const normalizeCuts = (
   return { edl: { cuts: [] }, migrated: true };
 };
 
+const normalizeSplits = (
+  splits: ProjectDoc["splits"] | undefined
+): { splits: Split[]; migrated: boolean } => {
+  if (!splits) {
+    return { splits: [], migrated: false };
+  }
+  if (!Array.isArray(splits)) {
+    return { splits: [], migrated: true };
+  }
+  const normalized = splits.reduce<Split[]>((acc, split) => {
+    if (!split || typeof split !== "object") {
+      return acc;
+    }
+    if (typeof split.id !== "string" || typeof split.tMs !== "number") {
+      return acc;
+    }
+    const entry: Split = { id: split.id, tMs: split.tMs };
+    if (typeof split.label === "string" && split.label.trim().length > 0) {
+      entry.label = split.label.trim();
+    }
+    if (split.kind === "manual" || split.kind === "auto") {
+      entry.kind = split.kind;
+    }
+    acc.push(entry);
+    return acc;
+  }, []);
+  normalized.sort((a, b) => a.tMs - b.tMs);
+  return { splits: normalized, migrated: normalized.length !== splits.length };
+};
+
 const normalizeProjectDocs = (
   docs: Record<string, ProjectDoc | LegacyProjectDoc>,
   providerId: ProviderId
@@ -160,20 +191,24 @@ const normalizeProjectDocs = (
   Object.entries(docs).forEach(([projectId, doc]) => {
     const normalizedSource = normalizeSource(doc.source, providerId);
     const normalizedEdl = normalizeCuts(doc.edl);
+    const normalizedSplits = normalizeSplits(doc.splits);
     if (!normalizedSource) {
       normalized[projectId] = {
         ...(doc as ProjectDoc),
         edl: normalizedEdl.edl,
+        splits: normalizedSplits.splits,
       };
-      migrated = migrated || normalizedEdl.migrated;
+      migrated = migrated || normalizedEdl.migrated || normalizedSplits.migrated;
       return;
     }
     normalized[projectId] = {
       ...doc,
       source: normalizedSource.source,
       edl: normalizedEdl.edl,
+      splits: normalizedSplits.splits,
     };
-    migrated = migrated || normalizedSource.migrated || normalizedEdl.migrated;
+    migrated =
+      migrated || normalizedSource.migrated || normalizedEdl.migrated || normalizedSplits.migrated;
   });
   return { docs: normalized, migrated };
 };
@@ -259,7 +294,7 @@ const loadProjectIndex = (): Record<string, ProjectListItem> => {
     try {
       const parsed = JSON.parse(raw) as Record<string, ProjectListItem>;
       const needsRebuild = Object.values(parsed).some(
-        (item) => typeof item.cutsCount !== "number"
+        (item) => typeof item.cutsCount !== "number" || typeof item.splitsCount !== "number"
       );
       if (!needsRebuild) {
         return parsed;
@@ -446,6 +481,26 @@ export class LocalStorageProvider implements StorageProvider {
         ...existing.edl,
         cuts: sortedCuts,
       },
+      updatedAt: new Date().toISOString(),
+    };
+    docs[projectId] = updatedDoc;
+    index[projectId] = buildSummary(updatedDoc);
+    saveProjectDocs(docs);
+    saveProjectIndex(index);
+    return updatedDoc;
+  }
+
+  async setSplits(projectId: string, splits: Split[]): Promise<ProjectDoc> {
+    const docs = loadProjectDocs();
+    const index = loadProjectIndex();
+    const existing = docs[projectId];
+    if (!existing) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    const sortedSplits = [...splits].sort((a, b) => a.tMs - b.tMs);
+    const updatedDoc: ProjectDoc = {
+      ...existing,
+      splits: sortedSplits,
       updatedAt: new Date().toISOString(),
     };
     docs[projectId] = updatedDoc;
