@@ -494,7 +494,7 @@ textarea:focus {
   background: var(--forge-panel);
   border-top: 1px solid var(--forge-border);
   display: grid;
-  grid-template-rows: auto 32px 1fr auto;
+  grid-template-rows: auto 32px 1fr 24px;
   gap: 6px;
   height: var(--hm-timeline-h, 174px);
 }
@@ -714,19 +714,50 @@ textarea:focus {
 
 .hm-timeline-footer {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
   color: var(--forge-muted);
-  padding: 0 20px 12px;
+  padding: 0 20px;
+  border-top: 1px solid var(--forge-border);
+  opacity: 0.78;
+  white-space: nowrap;
 }
 
-.hm-export-summary {
-  color: var(--forge-muted);
+.hm-timeline-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.hm-export-summary--error {
+.hm-timeline-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hm-export-idle {
+  color: var(--forge-muted);
+  opacity: 0.7;
+}
+
+.hm-export-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--forge-border);
+  background: var(--forge-panel-2);
+  color: var(--forge-text);
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hm-export-pill--error {
+  border-color: var(--forge-danger);
   color: var(--forge-danger);
+  background: var(--forge-panel);
 }
 
 .hub-shell {

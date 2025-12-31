@@ -233,6 +233,26 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             : exportStatus === "error"
               ? "Export failed"
               : "";
+  const exportFooterText =
+    exportStatus === "idle"
+      ? "Export: idle"
+      : exportStatus === "preparing"
+        ? "Export: preparing"
+        : exportStatus === "encoding"
+          ? "Export: encoding"
+          : exportStatus === "saving"
+            ? "Export: saving"
+            : exportStatus === "error"
+              ? `Export failed${exportError ? `: ${exportError}` : ""}`
+              : exportStatus === "done" && exportResult
+                ? `Export ready: ${exportResult.filename}`
+                : "Export status";
+  const exportFooterTitle =
+    exportStatus === "done" && exportResult
+      ? `Export ready: ${exportResult.filename} (${formatDuration(exportResult.durationMs)}, ${exportResult.bytes} bytes, ${exportResult.mime}, ${exportResult.container})`
+      : exportStatus === "error" && exportError
+        ? `Export failed: ${exportError}`
+        : undefined;
   const exportRequest: ExportRequest = {
     container: exportContainer,
     preset: "draft",
@@ -1184,22 +1204,23 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             Duration: {formatDuration(project.source.durationMs)} | {project.source.width}x
             {project.source.height} | Updated: {new Date(project.updatedAt).toLocaleString()}
           </div>
-          {exportStatus === "error" && exportError && (
-            <div className="hm-export-summary hm-export-summary--error">
-              Export error: {exportError}
-            </div>
-          )}
-          {exportStatus === "done" && exportResult && (
-            <div className="hm-export-summary">
-              Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)},
-              {" "}{exportResult.bytes} bytes, {exportResult.mime}, {exportResult.container})
-              {import.meta.env.DEV
-                ? ` | engine: ${exportResult.engine}${exportAudioLabel ? ` | ${exportAudioLabel}` : ""}${
-                    exportCodecLabel ? ` | ${exportCodecLabel}` : ""
-                  }`
-                : ""}
-            </div>
-          )}
+          <div className="hm-timeline-footer-right">
+            {exportStatus === "idle" ? (
+              <span className="hm-export-idle">{exportFooterText}</span>
+            ) : (
+              <span
+                className={`hm-export-pill${exportStatus === "error" ? " hm-export-pill--error" : ""}`}
+                title={exportFooterTitle}
+              >
+                {exportFooterText}
+                {import.meta.env.DEV && exportResult
+                  ? ` | ${exportResult.engine}${exportAudioLabel ? ` | ${exportAudioLabel}` : ""}${
+                      exportCodecLabel ? ` | ${exportCodecLabel}` : ""
+                    }`
+                  : ""}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
