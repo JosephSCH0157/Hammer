@@ -1,5 +1,5 @@
 import type { AssetRef, ProjectDoc, ProviderId } from "../../core/types/project";
-import type { ProjectListItem, StorageProvider } from "./storageProvider";
+import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
 
@@ -249,7 +249,7 @@ const buildAssetLookupIds = (assetId: string, providerId: ProviderId): string[] 
 export class LocalStorageProvider implements StorageProvider {
   providerId = LOCAL_PROVIDER_ID;
 
-  async putAsset(file: File): Promise<{ assetId: string; meta: any }> {
+  async putAsset(file: File): Promise<{ assetId: string; meta: AssetMeta }> {
     const assetId = namespaceAssetId(this.providerId, createId());
     assetStore.set(assetId, file);
     try {

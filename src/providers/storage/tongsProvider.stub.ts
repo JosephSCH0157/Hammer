@@ -1,10 +1,10 @@
 import type { ProjectDoc } from "../../core/types/project";
-import type { ProjectListItem, StorageProvider } from "./storageProvider";
+import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 
 export class TongsProvider implements StorageProvider {
   providerId = "tongs";
 
-  async putAsset(_file: File): Promise<{ assetId: string; meta: any }> {
+  async putAsset(_file: File): Promise<{ assetId: string; meta: AssetMeta }> {
     throw new Error("TongsProvider not implemented");
   }
 
