@@ -4,7 +4,14 @@ export const createPlaceholderExport = (
   plan: RenderPlan,
   keptDurationMs: number,
   container: ExportContainer
-): { blob: Blob; mime: string; engine: "placeholder" } => {
+): {
+  blob: Blob;
+  mime: string;
+  engine: "placeholder";
+  audioIncluded: boolean;
+  videoCodec?: string;
+  audioCodec?: string;
+} => {
   const payload = [
     "HAMMER_EXPORT_PLACEHOLDER",
     `source=${plan.sourceAssetId}`,
@@ -16,5 +23,6 @@ export const createPlaceholderExport = (
     blob: new Blob([payload], { type: mime }),
     mime,
     engine: "placeholder",
+    audioIncluded: false,
   };
 };

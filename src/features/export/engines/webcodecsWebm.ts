@@ -80,7 +80,14 @@ export const encodeWithWebCodecsWebm = async (
   plan: RenderPlan,
   storage: StorageProvider,
   request: ExportRequest
-): Promise<{ blob: Blob; mime: string; engine: "webcodecs" }> => {
+): Promise<{
+  blob: Blob;
+  mime: string;
+  engine: "webcodecs";
+  audioIncluded: boolean;
+  videoCodec?: string;
+  audioCodec?: string;
+}> => {
   if (!hasWebCodecs()) {
     throw new Error("WebCodecs not supported");
   }
@@ -121,6 +128,7 @@ export const encodeWithWebCodecsWebm = async (
         bitrate: quality,
       })
     : null;
+  const audioIncluded = request.includeAudio && Boolean(audioCodec);
 
   const videoOptions = {
     codec: videoCodec,
@@ -152,28 +160,27 @@ export const encodeWithWebCodecsWebm = async (
       : {}),
   };
 
-  const audioOptions =
-    request.includeAudio && audioCodec
-      ? {
-          codec: audioCodec,
-          bitrate: quality,
-          forceTranscode: true,
-          ...(needsRetiming
-            ? {
-                process: (sample: AudioSample) => {
-                  const sourceMs = sample.timestamp * 1000;
-                  const mapped = mapSourceMsToKept(sourceMs, keptRangesWithOffset);
-                  if (!mapped) {
-                    return null;
-                  }
-                  const next = sample.clone();
-                  next.setTimestamp(mapped.keptMs / 1000);
-                  return next;
-                },
-              }
-            : {}),
-        }
-      : { discard: true };
+  const audioOptions = audioIncluded
+    ? {
+        codec: audioCodec as NonNullable<typeof audioCodec>,
+        bitrate: quality,
+        forceTranscode: true,
+        ...(needsRetiming
+          ? {
+              process: (sample: AudioSample) => {
+                const sourceMs = sample.timestamp * 1000;
+                const mapped = mapSourceMsToKept(sourceMs, keptRangesWithOffset);
+                if (!mapped) {
+                  return null;
+                }
+                const next = sample.clone();
+                next.setTimestamp(mapped.keptMs / 1000);
+                return next;
+              },
+            }
+          : {}),
+      }
+    : { discard: true };
 
   const conversion = await Conversion.init({
     input,
@@ -196,5 +203,20 @@ export const encodeWithWebCodecsWebm = async (
   }
 
   const blob = new Blob([target.buffer], { type: mime });
-  return { blob, mime, engine: "webcodecs" };
+  const result: {
+    blob: Blob;
+    mime: string;
+    engine: "webcodecs";
+    audioIncluded: boolean;
+    videoCodec?: string;
+    audioCodec?: string;
+  } = {
+    blob,
+    mime,
+    engine: "webcodecs",
+    audioIncluded,
+    ...(videoCodec ? { videoCodec } : {}),
+    ...(audioCodec ? { audioCodec } : {}),
+  };
+  return result;
 };

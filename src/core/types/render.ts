@@ -31,5 +31,8 @@ export type ExportResult = {
   durationMs: number;
   bytes: number;
   mime: string;
+  audioIncluded: boolean;
+  videoCodec?: string;
+  audioCodec?: string;
   engine: "webcodecs" | "mediaRecorder" | "placeholder";
 };

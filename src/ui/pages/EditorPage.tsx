@@ -89,11 +89,13 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [cutError, setCutError] = useState<string | null>(null);
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
   const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
+  const [exportIncludeAudio, setExportIncludeAudio] = useState(true);
   const [exportStatus, setExportStatus] = useState<
     "idle" | "preparing" | "encoding" | "saving" | "done" | "error"
   >("idle");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
+  const [lastExportRequest, setLastExportRequest] = useState<ExportRequest | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
@@ -130,8 +132,18 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const exportRequest: ExportRequest = {
     container: exportContainer,
     preset: "draft",
-    includeAudio: true,
+    includeAudio: exportIncludeAudio,
   };
+  const exportAudioLabel = exportResult
+    ? exportResult.audioIncluded
+      ? "mode: audio+video"
+      : lastExportRequest?.includeAudio
+        ? "mode: video-only (audio unsupported)"
+        : "mode: video-only (audio disabled)"
+    : "";
+  const exportCodecLabel = exportResult?.videoCodec
+    ? `codecs: ${exportResult.videoCodec}${exportResult.audioCodec ? `/${exportResult.audioCodec}` : ""}`
+    : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -257,6 +269,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setExportResult(null);
     try {
       const plan = buildRenderPlan(project);
+      setLastExportRequest(exportRequest);
       const result = await exportFull(plan, storage, exportRequest, (phase) => setExportStatus(phase));
       setExportResult(result);
       setExportStatus("done");
@@ -454,6 +467,15 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               </option>
             </select>
           </label>
+          <label className="export-field">
+            <span className="export-field-label">Include audio</span>
+            <input
+              type="checkbox"
+              checked={exportIncludeAudio}
+              onChange={(event) => setExportIncludeAudio(event.target.checked)}
+              disabled={exportBusy}
+            />
+          </label>
           <button onClick={handleExportFull} disabled={exportBusy}>
             Export Full
           </button>
@@ -468,7 +490,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         <p className="export-summary">
           Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)}, {exportResult.bytes}{" "}
           bytes, {exportResult.mime}, {exportResult.container})
-          {import.meta.env.DEV ? `, engine: ${exportResult.engine}` : ""}
+          {import.meta.env.DEV
+            ? `, engine: ${exportResult.engine}${exportAudioLabel ? `, ${exportAudioLabel}` : ""}${
+                exportCodecLabel ? `, ${exportCodecLabel}` : ""
+              }`
+            : ""}
         </p>
       )}
 

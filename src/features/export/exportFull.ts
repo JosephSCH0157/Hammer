@@ -31,7 +31,14 @@ const encodeWithFallbacks = async (
   storage: StorageProvider,
   request: ExportRequest,
   keptDurationMs: number
-): Promise<{ blob: Blob; mime: string; engine: ExportResult["engine"] }> => {
+): Promise<{
+  blob: Blob;
+  mime: string;
+  engine: ExportResult["engine"];
+  audioIncluded: boolean;
+  videoCodec?: string;
+  audioCodec?: string;
+}> => {
   if (request.container === "webm" && canEncodeWebmWithWebCodecs()) {
     try {
       return await encodeWithWebCodecsWebm(plan, storage, request);
@@ -56,20 +63,33 @@ export const exportFull = async (
   const keptDurationMs = computeKeptDurationMs(plan.sourceDurationMs, plan.cuts);
 
   onPhase?.("encoding");
-  const { blob, mime, engine } = await encodeWithFallbacks(plan, storage, request, keptDurationMs);
+  const { blob, mime, engine, audioIncluded, videoCodec, audioCodec } = await encodeWithFallbacks(
+    plan,
+    storage,
+    request,
+    keptDurationMs
+  );
 
   onPhase?.("saving");
   const filename = buildFilename(mime);
   const file = new File([blob], filename, { type: mime });
   const asset = await storage.putAsset(file);
 
-  return {
+  const result: ExportResult = {
     assetId: asset.assetId,
     container: containerForMime(mime),
     filename,
     durationMs: keptDurationMs,
     bytes: blob.size,
     mime,
+    audioIncluded,
     engine,
   };
+  if (videoCodec) {
+    result.videoCodec = videoCodec;
+  }
+  if (audioCodec) {
+    result.audioCodec = audioCodec;
+  }
+  return result;
 };

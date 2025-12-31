@@ -121,7 +121,14 @@ export const encodeWithMediaRecorder = async (
   plan: RenderPlan,
   storage: StorageProvider,
   request: ExportRequest
-): Promise<{ blob: Blob; mime: string; engine: "mediaRecorder" }> => {
+): Promise<{
+  blob: Blob;
+  mime: string;
+  engine: "mediaRecorder";
+  audioIncluded: boolean;
+  videoCodec?: string;
+  audioCodec?: string;
+}> => {
   if (typeof document === "undefined") {
     throw new Error("Encoding requires a browser environment");
   }
@@ -152,6 +159,7 @@ export const encodeWithMediaRecorder = async (
     const mime = pickRecorderMimeType(request.container);
     const recorder = new MediaRecorder(stream, { mimeType: mime });
     const chunks: BlobPart[] = [];
+    const hasAudio = stream.getAudioTracks().length > 0;
 
     const recorderStopped = new Promise<void>((resolve, reject) => {
       recorder.onstop = () => resolve();
@@ -185,6 +193,7 @@ export const encodeWithMediaRecorder = async (
       blob: new Blob(chunks, { type: mime }),
       mime,
       engine: "mediaRecorder",
+      audioIncluded: request.includeAudio && hasAudio,
     };
   } finally {
     video.pause();
