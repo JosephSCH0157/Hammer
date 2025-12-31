@@ -212,6 +212,11 @@ textarea:focus {
   border-color: var(--forge-border-strong);
 }
 
+.hm-button--compact {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
 .hm-content {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -430,11 +435,31 @@ textarea:focus {
 .hm-timeline {
   background: var(--forge-panel);
   border-top: 1px solid var(--forge-border);
-  padding: 12px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   height: 150px;
+}
+
+.hm-timelineToolbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  background: var(--forge-panel-2);
+  border-bottom: 1px solid var(--forge-border);
+}
+
+.hm-timelineActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hm-timelineActionGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .hm-timeline-track {
@@ -442,6 +467,7 @@ textarea:focus {
   min-height: 0;
   display: flex;
   align-items: center;
+  padding: 0 20px;
 }
 
 .hm-timeline-rail {
@@ -468,6 +494,7 @@ textarea:focus {
   gap: 4px;
   font-size: 12px;
   color: var(--forge-muted);
+  padding: 0 20px 12px;
 }
 
 .hm-export-summary {

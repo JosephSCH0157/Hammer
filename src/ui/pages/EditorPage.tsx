@@ -655,29 +655,6 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             <section className="hm-panel hm-panel--cuts">
               <div className="hm-panel-header">
                 <h2 className="hm-panel-title">Cuts</h2>
-                <div className="hm-panel-actions">
-                  <button
-                    className="hm-button hm-button--ghost"
-                    onClick={handleMarkIn}
-                    disabled={cutStatus === "loading"}
-                  >
-                    Mark In
-                  </button>
-                  <button
-                    className="hm-button hm-button--ghost"
-                    onClick={handleMarkOut}
-                    disabled={cutStatus === "loading"}
-                  >
-                    Mark Out
-                  </button>
-                  <button
-                    className="hm-button"
-                    onClick={handleAddCut}
-                    disabled={cutStatus === "loading" || !isCutValid}
-                  >
-                    Add Cut
-                  </button>
-                </div>
               </div>
               <div className="hm-panel-body">
                 <div className="cuts-marks">
@@ -782,6 +759,33 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       </div>
 
       <div className="hm-timeline">
+        <div className="hm-timelineToolbar">
+          <div className="hm-timelineActions">
+            <div className="hm-timelineActionGroup">
+              <button
+                className="hm-button hm-button--ghost hm-button--compact"
+                onClick={handleMarkIn}
+                disabled={cutStatus === "loading"}
+              >
+                Mark In
+              </button>
+              <button
+                className="hm-button hm-button--ghost hm-button--compact"
+                onClick={handleMarkOut}
+                disabled={cutStatus === "loading"}
+              >
+                Mark Out
+              </button>
+            </div>
+            <button
+              className="hm-button hm-button--compact"
+              onClick={handleAddCut}
+              disabled={cutStatus === "loading" || !isCutValid}
+            >
+              Add Cut
+            </button>
+          </div>
+        </div>
         <div className="hm-timeline-track">
           <div className="hm-timeline-rail">
             <div className="hm-timeline-playhead" />
