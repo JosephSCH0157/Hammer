@@ -12,6 +12,10 @@ export class TongsProvider implements StorageProvider {
     throw new Error("TongsProvider not implemented");
   }
 
+  async relinkSource(_projectId: string, _file: File): Promise<ProjectDoc> {
+    throw new Error("TongsProvider not implemented");
+  }
+
   async saveProject(_doc: ProjectDoc): Promise<void> {
     throw new Error("TongsProvider not implemented");
   }

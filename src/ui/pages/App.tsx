@@ -15,6 +15,7 @@ export function App() {
       <EditorPage
         project={screen.project}
         storage={storage}
+        onProjectUpdated={(project) => setScreen({ kind: "editor", project })}
         onBack={() => setScreen({ kind: "picker" })}
       />
     );

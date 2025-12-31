@@ -311,6 +311,7 @@ interface StorageProvider {
   providerId: string;
   putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
   getAsset(assetId: AssetId): Promise<Blob>;
+  relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<Array<{ projectId: string; updatedAt: string; title?: string }>>;

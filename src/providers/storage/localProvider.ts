@@ -1,6 +1,7 @@
 import type { AssetRef, ProjectDoc, ProviderId } from "../../core/types/project";
 import type { ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
+import { getMediaMetadata } from "../../features/ingest/mediaMeta";
 
 const PROJECT_INDEX_KEY = "hammer.projects.index";
 const PROJECT_DOCS_KEY = "hammer.projects.docs";
@@ -306,6 +307,40 @@ export class LocalStorageProvider implements StorageProvider {
         }`
       );
     }
+  }
+
+  async relinkSource(projectId: string, file: File): Promise<ProjectDoc> {
+    const docs = loadProjectDocs();
+    const index = loadProjectIndex();
+    const existing = docs[projectId];
+    if (!existing) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    const metadata = await getMediaMetadata(file);
+    const asset = await this.putAsset(file);
+    const updatedSource: ProjectDoc["source"] = {
+      ...existing.source,
+      asset: { providerId: this.providerId, assetId: asset.assetId },
+      filename: file.name,
+      durationMs: metadata.durationMs,
+      width: metadata.width,
+      height: metadata.height,
+    };
+    if (typeof metadata.fps === "number") {
+      updatedSource.fps = metadata.fps;
+    } else {
+      delete updatedSource.fps;
+    }
+    const updatedDoc: ProjectDoc = {
+      ...existing,
+      source: updatedSource,
+      updatedAt: new Date().toISOString(),
+    };
+    docs[projectId] = updatedDoc;
+    index[projectId] = buildSummary(updatedDoc);
+    saveProjectDocs(docs);
+    saveProjectIndex(index);
+    return updatedDoc;
   }
 
   async saveProject(doc: ProjectDoc): Promise<void> {

@@ -1,19 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import type { ProjectDoc } from "../../core/types/project";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 
 type Props = {
   project: ProjectDoc;
   storage: StorageProvider;
+  onProjectUpdated: (project: ProjectDoc) => void;
   onBack: () => void;
 };
 
-export function EditorPage({ project, storage, onBack }: Props) {
+export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "error">("idle");
   const [assetError, setAssetError] = useState<string | null>(null);
+  const [relinkStatus, setRelinkStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [relinkError, setRelinkError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const showRetry = import.meta.env.DEV;
+  const relinkInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +58,29 @@ export function EditorPage({ project, storage, onBack }: Props) {
       }
     };
   }, [project.source.asset.assetId, storage, retryCount]);
+
+  const handleRelinkClick = () => {
+    relinkInputRef.current?.click();
+  };
+
+  const handleRelinkChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) {
+      return;
+    }
+    setRelinkStatus("loading");
+    setRelinkError(null);
+    try {
+      const updatedProject = await storage.relinkSource(project.projectId, file);
+      onProjectUpdated(updatedProject);
+      setRelinkStatus("idle");
+    } catch (error) {
+      setRelinkStatus("error");
+      setRelinkError(error instanceof Error ? error.message : "Unknown error");
+    } finally {
+      event.currentTarget.value = "";
+    }
+  };
   return (
     <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -64,12 +92,26 @@ export function EditorPage({ project, storage, onBack }: Props) {
         Editor shell (metadata + preview). Next: transcript panel.
       </p>
 
+      <input
+        ref={relinkInputRef}
+        type="file"
+        accept="video/*"
+        onChange={handleRelinkChange}
+        style={{ display: "none" }}
+      />
+
       <div style={{ marginTop: 16 }}>
         {assetStatus === "loading" && <p>Loading video...</p>}
         {assetStatus === "error" && (
           <div>
             <p>{assetError ?? "Source media not found on this device."}</p>
-            <button disabled>Re-link source file (v0.02)</button>
+            <button onClick={handleRelinkClick} disabled={relinkStatus === "loading"}>
+              Re-link source file
+            </button>
+            {relinkStatus === "error" && (
+              <p style={{ marginTop: 8 }}>Re-link failed: {relinkError}</p>
+            )}
+            {relinkStatus === "loading" && <p style={{ marginTop: 8 }}>Re-linking...</p>}
             {showRetry && (
               <button
                 style={{ marginLeft: 8 }}

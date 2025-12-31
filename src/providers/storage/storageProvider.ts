@@ -18,6 +18,8 @@ export interface StorageProvider {
   putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
   /** assetId must be provider-namespaced (e.g., local:uuid). */
   getAsset(assetId: AssetId): Promise<Blob>;
+  /** Re-link a project source asset by storing a new file and updating the project. */
+  relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<ProjectListItem[]>;
