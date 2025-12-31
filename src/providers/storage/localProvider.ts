@@ -4,6 +4,7 @@ import type { ProjectListItem, StorageProvider } from "./storageProvider";
 const PROJECT_INDEX_KEY = "hammer.projects.index";
 const PROJECT_DOCS_KEY = "hammer.projects.docs";
 const LEGACY_PROJECTS_KEY = "hammer.projects";
+const PROJECT_MIGRATION_KEY = "hammer.projects.migratedAt";
 const assetStore = new Map<string, Blob>();
 let memoryDocs: Record<string, ProjectDoc> = {};
 let memoryIndex: Record<string, ProjectListItem> = {};
@@ -34,19 +35,55 @@ const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, Pr
   return index;
 };
 
+const parseProjectDocs = (raw: string | null): Record<string, ProjectDoc> | null => {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, ProjectDoc>;
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const migrateLegacyProjects = (): Record<string, ProjectDoc> | null => {
+  if (!hasLocalStorage()) {
+    return null;
+  }
+  if (localStorage.getItem(PROJECT_MIGRATION_KEY)) {
+    return null;
+  }
+  if (localStorage.getItem(PROJECT_DOCS_KEY) || localStorage.getItem(PROJECT_INDEX_KEY)) {
+    return null;
+  }
+  const legacyDocs = parseProjectDocs(localStorage.getItem(LEGACY_PROJECTS_KEY));
+  if (!legacyDocs) {
+    return null;
+  }
+  saveProjectDocs(legacyDocs);
+  const index = buildIndexFromDocs(legacyDocs);
+  saveProjectIndex(index);
+  localStorage.setItem(PROJECT_MIGRATION_KEY, new Date().toISOString());
+  return legacyDocs;
+};
+
 const loadProjectDocs = (): Record<string, ProjectDoc> => {
   if (!hasLocalStorage()) {
     return { ...memoryDocs };
   }
-  const raw = localStorage.getItem(PROJECT_DOCS_KEY) ?? localStorage.getItem(LEGACY_PROJECTS_KEY);
-  if (!raw) {
-    return {};
+  const storedDocs = parseProjectDocs(localStorage.getItem(PROJECT_DOCS_KEY));
+  if (storedDocs) {
+    return storedDocs;
   }
-  try {
-    return JSON.parse(raw) as Record<string, ProjectDoc>;
-  } catch {
-    return {};
+  const migratedDocs = migrateLegacyProjects();
+  if (migratedDocs) {
+    return migratedDocs;
   }
+  return parseProjectDocs(localStorage.getItem(LEGACY_PROJECTS_KEY)) ?? {};
 };
 
 const saveProjectDocs = (docs: Record<string, ProjectDoc>): void => {
@@ -147,7 +184,7 @@ export class LocalStorageProvider implements StorageProvider {
     const hasDoc = Boolean(docs[projectId]);
     const hasIndex = Boolean(index[projectId]);
     if (!hasDoc && !hasIndex) {
-      throw new Error(`Project not found: ${projectId}`);
+      return;
     }
     if (hasDoc) {
       delete docs[projectId];
@@ -155,7 +192,11 @@ export class LocalStorageProvider implements StorageProvider {
     if (hasIndex) {
       delete index[projectId];
     }
-    saveProjectDocs(docs);
-    saveProjectIndex(index);
+    if (hasDoc) {
+      saveProjectDocs(docs);
+    }
+    if (hasIndex) {
+      saveProjectIndex(index);
+    }
   }
 }
