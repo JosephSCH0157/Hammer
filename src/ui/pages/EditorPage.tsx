@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
+import type { RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
+import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
 
 const formatTimestamp = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -14,6 +16,23 @@ const formatTimestamp = (ms: number): string => {
 const formatDuration = (ms: number): string => formatTimestamp(ms);
 
 const MIN_CUT_DURATION_MS = 500;
+
+const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
+  const durationMs = project.source.durationMs;
+  const cutRanges = project.edl?.cuts?.map((cut) => ({ inMs: cut.inMs, outMs: cut.outMs })) ?? [];
+  const normalizedCuts = normalizeCuts(cutRanges, durationMs);
+  return {
+    sourceAssetId: project.source.asset.assetId,
+    cuts: normalizedCuts,
+    output: { format: "mp4", quality: "draft" },
+  };
+};
+
+const logCutPlan = (project: ProjectDoc): void => {
+  const plan = buildRenderPlan(project);
+  const keptDurationMs = computeKeptDurationMs(project.source.durationMs, plan.cuts);
+  console.warn("Render plan debug:", { cuts: plan.cuts, keptDurationMs });
+};
 
 const buildStubTranscript = (durationMs: number): Transcript => {
   const script = [
@@ -249,6 +268,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       const nextCuts = [...cuts, newCut].sort((a, b) => a.inMs - b.inMs);
       const updatedProject = await storage.setCuts(project.projectId, nextCuts);
       onProjectUpdated(updatedProject);
+      logCutPlan(updatedProject);
       setMarkInMs(null);
       setMarkOutMs(null);
       setCutStatus("idle");
@@ -274,6 +294,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       const nextCuts = cuts.filter((cut) => cut.id !== cutId);
       const updatedProject = await storage.setCuts(project.projectId, nextCuts);
       onProjectUpdated(updatedProject);
+      logCutPlan(updatedProject);
       setCutStatus("idle");
     } catch (error) {
       setCutStatus("error");

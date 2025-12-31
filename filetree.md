@@ -7,8 +7,11 @@ Excludes: .git, node_modules
 ./
 |-- src/
 |   |-- core/
+|   |   |-- time/
+|   |   |   +-- ranges.ts
 |   |   +-- types/
-|   |       +-- project.ts
+|   |       |-- project.ts
+|   |       +-- render.ts
 |   |-- features/
 |   |   |-- ingest/
 |   |   |   |-- importMedia.ts
@@ -31,6 +34,7 @@ Excludes: .git, node_modules
 |   |       +-- ProjectPickerPage.tsx
 |   +-- main.tsx
 |-- eslint.config.js
+|-- filetree.md
 |-- index.html
 |-- lint.txt
 |-- MANIFEST.md
