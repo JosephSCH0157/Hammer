@@ -234,7 +234,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [asrError, setAsrError] = useState<string | null>(null);
   const [asrCached, setAsrCached] = useState(false);
   const [asrDevice, setAsrDevice] = useState<"webgpu" | "wasm" | null>(null);
-  const [asrModel, setAsrModel] = useState("base.en");
+  const [asrModel, setAsrModel] = useState("openai/whisper-base.en");
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
   const [markInMs, setMarkInMs] = useState<number | null>(null);
   const [markOutMs, setMarkOutMs] = useState<number | null>(null);
@@ -1709,13 +1709,13 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                   <div className="hm-transcript-offline-row">
                     <label className="hm-transcript-model">
                       <span>Model</span>
-                      <select
-                        value={asrModel}
-                        onChange={(event) => setAsrModel(event.target.value)}
-                        disabled={asrBusy}
-                      >
-                        <option value="base.en">base.en</option>
-                      </select>
+                    <select
+                      value={asrModel}
+                      onChange={(event) => setAsrModel(event.target.value)}
+                      disabled={asrBusy}
+                    >
+                      <option value="openai/whisper-base.en">openai/whisper-base.en</option>
+                    </select>
                     </label>
                     <button
                       className="hm-button hm-button--compact"

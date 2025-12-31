@@ -38,6 +38,7 @@ let pipelinePromise: Promise<any> | null = null;
 let pipelineModel: string | null = null;
 let lastCached = false;
 let lastDevice: "webgpu" | "wasm" = "wasm";
+const DEFAULT_MODEL = "openai/whisper-base.en";
 
 const resolveDevice = (): "webgpu" | "wasm" => {
   const nav = ctx.navigator as Navigator | undefined;
@@ -92,14 +93,15 @@ const getPipeline = async (
   model: string,
   requestId: string
 ): Promise<{ pipe: any; cached: boolean; device: "webgpu" | "wasm" }> => {
-  if (pipelinePromise && pipelineModel === model) {
+  const normalizedModel = model?.trim() || DEFAULT_MODEL;
+  if (pipelinePromise && pipelineModel === normalizedModel) {
     return { pipe: await pipelinePromise, cached: lastCached, device: lastDevice };
   }
   const device = resolveDevice();
   lastDevice = device;
   let sawDownload = false;
-  pipelineModel = model;
-  pipelinePromise = pipeline("automatic-speech-recognition", model, {
+  pipelineModel = normalizedModel;
+  pipelinePromise = pipeline("automatic-speech-recognition", normalizedModel, {
     device,
     progress_callback: (progress: any) => {
       sawDownload = true;
