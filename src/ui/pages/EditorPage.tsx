@@ -88,6 +88,17 @@ const formatBytes = (bytes: number): string => {
   return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
+const stripExtension = (name: string): string => {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= 0) {
+    return name;
+  }
+  return name.slice(0, dotIndex);
+};
+
+const formatAssetKind = (kind: Asset["kind"]): string =>
+  kind === "image" ? "Image" : kind === "audio" ? "Audio" : "Video";
+
 const createId = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -207,7 +218,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [lastExportRequest, setLastExportRequest] = useState<ExportRequest | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const [assetImportError, setAssetImportError] = useState<string | null>(null);
+  const [assetActionError, setAssetActionError] = useState<string | null>(null);
+  const [assetFilter, setAssetFilter] = useState<"all" | Asset["kind"]>("all");
+  const [assetSort, setAssetSort] = useState<"newest" | "name" | "type">("newest");
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
@@ -223,6 +236,30 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
+  const visibleAssets = useMemo(() => {
+    const filtered =
+      assetFilter === "all" ? assets : assets.filter((asset) => asset.kind === assetFilter);
+    const sorted = [...filtered];
+    if (assetSort === "newest") {
+      sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    } else if (assetSort === "name") {
+      sorted.sort((a, b) => {
+        const nameA = a.displayName ?? a.name;
+        const nameB = b.displayName ?? b.name;
+        return nameA.localeCompare(nameB);
+      });
+    } else {
+      sorted.sort((a, b) => {
+        if (a.kind === b.kind) {
+          const nameA = a.displayName ?? a.name;
+          const nameB = b.displayName ?? b.name;
+          return nameA.localeCompare(nameB);
+        }
+        return a.kind.localeCompare(b.kind);
+      });
+    }
+    return sorted;
+  }, [assets, assetFilter, assetSort]);
   const selectedCut = selectedCutId ? cuts.find((cut) => cut.id === selectedCutId) ?? null : null;
   const durationMs = project.source.durationMs;
   const normalizedCuts = normalizeCuts(
@@ -811,6 +848,17 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     await handleExport(plan);
   };
 
+  const updateAssets = async (nextAssets: Asset[], fallbackMessage: string) => {
+    setAssetActionError(null);
+    try {
+      const updated = await storage.setAssets(project.projectId, nextAssets);
+      onProjectUpdated(updated);
+    } catch (error) {
+      setAssetActionError(error instanceof Error ? error.message : fallbackMessage);
+      throw error;
+    }
+  };
+
   const handleImportAssetsClick = () => {
     importAssetsRef.current?.click();
   };
@@ -820,26 +868,31 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     if (files.length === 0) {
       return;
     }
-    setAssetImportError(null);
+    setAssetActionError(null);
     const now = new Date().toISOString();
     const newAssets: Asset[] = files.map((file) => {
-      const kind = file.type.startsWith("image/") ? "image" : "video";
+      const kind = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("audio/")
+          ? "audio"
+          : "video";
       const id = createId();
       const previewUrl = URL.createObjectURL(file);
       assetPreviewMapRef.current.set(id, previewUrl);
+      const displayName = stripExtension(file.name).trim();
       return {
         id,
         kind,
         name: file.name,
+        ...(displayName ? { displayName } : {}),
         size: file.size,
         mime: file.type,
         createdAt: now,
       };
     });
     try {
-      const updated = await storage.setAssets(project.projectId, [...assets, ...newAssets]);
-      onProjectUpdated(updated);
-    } catch (error) {
+      await updateAssets([...assets, ...newAssets], "Unable to import assets.");
+    } catch {
       newAssets.forEach((asset) => {
         const url = assetPreviewMapRef.current.get(asset.id);
         if (url) {
@@ -847,12 +900,39 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           assetPreviewMapRef.current.delete(asset.id);
         }
       });
-      setAssetImportError(
-        error instanceof Error ? error.message : "Unable to import assets."
-      );
     } finally {
       event.currentTarget.value = "";
     }
+  };
+
+  const handleRemoveAsset = async (assetId: string) => {
+    const url = assetPreviewMapRef.current.get(assetId);
+    if (url) {
+      URL.revokeObjectURL(url);
+      assetPreviewMapRef.current.delete(assetId);
+    }
+    const nextAssets = assets.filter((asset) => asset.id !== assetId);
+    await updateAssets(nextAssets, "Unable to remove asset.");
+  };
+
+  const handleRenameAsset = async (asset: Asset) => {
+    const currentName = asset.displayName ?? asset.name;
+    const nextName = window.prompt("Rename asset", currentName);
+    if (nextName === null) {
+      return;
+    }
+    const trimmed = nextName.trim();
+    const nextAssets = assets.map((entry) => {
+      if (entry.id !== asset.id) {
+        return entry;
+      }
+      if (!trimmed) {
+        const { displayName: _unused, ...rest } = entry;
+        return rest;
+      }
+      return { ...entry, displayName: trimmed };
+    });
+    await updateAssets(nextAssets, "Unable to rename asset.");
   };
 
   return (
@@ -938,7 +1018,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         <input
           ref={importAssetsRef}
           type="file"
-          accept="image/*,video/*"
+          accept="image/*,video/*,audio/*"
           multiple
           onChange={handleImportAssetsChange}
           hidden
@@ -1142,13 +1222,41 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </div>
         </div>
         <div className="hm-assetbinBody">
-          {assetImportError && <div className="hm-asset-error">{assetImportError}</div>}
-          {assets.length === 0 ? (
+          {assetActionError && <div className="hm-asset-error">{assetActionError}</div>}
+          <div className="hm-asset-controls">
+            <div className="hm-asset-filters">
+              {(["all", "video", "audio", "image"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  className={`hm-asset-filter${assetFilter === filter ? " active" : ""}`}
+                  onClick={() => setAssetFilter(filter)}
+                >
+                  {filter === "all" ? "All" : filter === "image" ? "Images" : formatAssetKind(filter)}
+                </button>
+              ))}
+            </div>
+            <label className="hm-asset-sort">
+              <span>Sort</span>
+              <select
+                value={assetSort}
+                onChange={(event) =>
+                  setAssetSort(event.target.value as "newest" | "name" | "type")
+                }
+              >
+                <option value="newest">Newest</option>
+                <option value="name">Name</option>
+                <option value="type">Type</option>
+              </select>
+            </label>
+          </div>
+          {visibleAssets.length === 0 ? (
             <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
           ) : (
             <div className="hm-asset-list">
-              {assets.map((asset) => {
+              {visibleAssets.map((asset) => {
                 const previewUrl = assetPreviewMapRef.current.get(asset.id);
+                const displayName = asset.displayName ?? asset.name;
                 return (
                   <div key={asset.id} className="hm-asset-card">
                     <div className="hm-asset-thumb">
@@ -1156,14 +1264,41 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                         <img src={previewUrl} alt={asset.name} />
                       ) : (
                         <div className="hm-asset-thumb-fallback">
-                          {asset.kind === "video" ? "VIDEO" : "IMAGE"}
+                          {asset.kind === "video"
+                            ? "VIDEO"
+                            : asset.kind === "audio"
+                              ? "AUDIO"
+                              : "IMAGE"}
                         </div>
                       )}
                     </div>
                     <div className="hm-asset-info">
-                      <div className="hm-asset-name">{asset.name}</div>
+                      <div className="hm-asset-name" title={displayName}>
+                        {displayName}
+                      </div>
+                      {displayName !== asset.name && (
+                        <div className="hm-asset-filename" title={asset.name}>
+                          {asset.name}
+                        </div>
+                      )}
                       <div className="hm-asset-meta">
-                        {asset.kind} · {formatBytes(asset.size)}
+                        {formatAssetKind(asset.kind)} · {formatBytes(asset.size)}
+                      </div>
+                      <div className="hm-asset-actions">
+                        <button
+                          className="hm-asset-action"
+                          type="button"
+                          onClick={() => void handleRenameAsset(asset)}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          className="hm-asset-action hm-asset-action--danger"
+                          type="button"
+                          onClick={() => void handleRemoveAsset(asset.id)}
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
                   </div>

@@ -471,6 +471,8 @@ textarea:focus {
 .hm-assetbinBody {
   overflow: auto;
   padding: 12px;
+  display: grid;
+  gap: 12px;
 }
 
 .hm-assetbinActions {
@@ -493,6 +495,53 @@ textarea:focus {
   color: var(--forge-danger);
   font-size: 12px;
   margin-bottom: 8px;
+}
+
+.hm-asset-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hm-asset-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hm-asset-filter {
+  border: 1px solid var(--forge-border);
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.hm-asset-filter.active {
+  background: var(--forge-panel-3);
+  border-color: var(--forge-border-strong);
+}
+
+.hm-asset-sort {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-asset-sort select {
+  background: var(--forge-panel-2);
+  border: 1px solid var(--forge-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--forge-text);
 }
 
 .hm-asset-list {
@@ -549,9 +598,39 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.hm-asset-filename {
+  font-size: 11px;
+  color: var(--forge-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hm-asset-meta {
   font-size: 11px;
   color: var(--forge-muted);
+}
+
+.hm-asset-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.hm-asset-action {
+  border: 1px solid var(--forge-border);
+  background: transparent;
+  color: var(--forge-text);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.hm-asset-action--danger {
+  border-color: var(--forge-danger);
+  color: var(--forge-danger);
 }
 
 .hm-timeline {

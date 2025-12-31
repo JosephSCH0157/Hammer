@@ -68,8 +68,9 @@ export type Split = {
 
 export type Asset = {
   id: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "audio";
   name: string;
+  displayName?: string;
   size: number;
   mime: string;
   createdAt: string;

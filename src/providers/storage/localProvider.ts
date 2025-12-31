@@ -205,7 +205,7 @@ const normalizeAssets = (
     ) {
       return acc;
     }
-    if (asset.kind !== "image" && asset.kind !== "video") {
+    if (asset.kind !== "image" && asset.kind !== "video" && asset.kind !== "audio") {
       return acc;
     }
     const entry: Asset = {
@@ -216,6 +216,9 @@ const normalizeAssets = (
       mime: typeof asset.mime === "string" ? asset.mime : "",
       createdAt: typeof asset.createdAt === "string" ? asset.createdAt : new Date().toISOString(),
     };
+    if (typeof asset.displayName === "string" && asset.displayName.trim().length > 0) {
+      entry.displayName = asset.displayName.trim();
+    }
     if (typeof asset.durationMs === "number") {
       entry.durationMs = asset.durationMs;
     }
