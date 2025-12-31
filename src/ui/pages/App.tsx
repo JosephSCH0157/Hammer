@@ -80,18 +80,24 @@ export function App() {
   if (route.kind === "editor") {
     if (projectState.status === "loading") {
       return (
-        <div className="hammer-page">
-          <h1>Loading project...</h1>
-          <p>Hang tight while we fetch your project.</p>
+        <div className="hm-loading">
+          <div className="hm-loading-card">
+            <h1>Loading project...</h1>
+            <p>Hang tight while we fetch your project.</p>
+          </div>
         </div>
       );
     }
     if (projectState.status === "error") {
       return (
-        <div className="hammer-page">
-          <h1>Project unavailable</h1>
-          <p>{projectState.error}</p>
-          <button onClick={() => navigate("/")}>Back to Project Hub</button>
+        <div className="hm-loading">
+          <div className="hm-loading-card">
+            <h1>Project unavailable</h1>
+            <p>{projectState.error}</p>
+            <button className="hm-button" onClick={() => navigate("/")}>
+              Back to Project Hub
+            </button>
+          </div>
         </div>
       );
     }

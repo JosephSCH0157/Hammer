@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
@@ -18,6 +18,13 @@ const formatTimestamp = (ms: number): string => {
 const formatDuration = (ms: number): string => formatTimestamp(ms);
 
 const MIN_CUT_DURATION_MS = 500;
+
+const createId = (): string => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+};
 
 const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
   const durationMs = project.source.durationMs;
@@ -75,6 +82,24 @@ const buildStubTranscript = (durationMs: number): Transcript => {
   };
 };
 
+const findActiveSegmentId = (segments: TranscriptSegment[], currentMs: number): string | null => {
+  if (segments.length === 0) {
+    return null;
+  }
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (!segment) {
+      continue;
+    }
+    const nextStartMs = segments[index + 1]?.startMs;
+    const endMs = segment.endMs ?? nextStartMs ?? Number.POSITIVE_INFINITY;
+    if (currentMs >= segment.startMs && currentMs < endMs) {
+      return segment.id;
+    }
+  }
+  return null;
+};
+
 type Props = {
   project: ProjectDoc;
   storage: StorageProvider;
@@ -98,6 +123,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [cutError, setCutError] = useState<string | null>(null);
   const [selectedCutId, setSelectedCutId] = useState<string | null>(null);
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
   const [exportIncludeAudio, setExportIncludeAudio] = useState(true);
   const [exportStatus, setExportStatus] = useState<
@@ -111,8 +138,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const segments = project.transcript?.segments ?? [];
-  const cuts = project.edl?.cuts ?? [];
+  const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
+  const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const selectedCut = selectedCutId ? cuts.find((cut) => cut.id === selectedCutId) ?? null : null;
   const durationMs = project.source.durationMs;
   const normalizedCuts = normalizeCuts(
@@ -121,6 +148,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   );
   const keptRanges = computeKeptRanges(durationMs, normalizedCuts);
   const canRetry = showRetry || Boolean(assetError?.includes("IndexedDB open blocked"));
+  const canTransport = Boolean(videoUrl) && assetStatus === "idle";
   const isCutValid =
     markInMs !== null &&
     markOutMs !== null &&
@@ -201,41 +229,98 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         URL.revokeObjectURL(localUrl);
       }
     };
-  }, [project.source.asset.assetId, storage, retryCount]);
+  }, [project.source.asset.assetId, retryCount, storage]);
 
   useEffect(() => {
-    setRelinkStatus("idle");
-    setRelinkError(null);
-    setLastRelinkFilename(null);
-  }, [project.projectId]);
-
-  useEffect(() => {
-    setTranscriptStatus("idle");
-    setTranscriptError(null);
-    setActiveSegmentId(null);
-  }, [project.projectId, segments.length]);
-
-  useEffect(() => {
-    setMarkInMs(null);
-    setMarkOutMs(null);
-    setCutStatus("idle");
-    setCutError(null);
-    setStopAtMs(null);
-    setSelectedCutId(null);
-  }, [project.projectId]);
-
-  const getCurrentTimeMs = (): number | null => {
-    if (!videoRef.current) {
-      return null;
+    if (import.meta.env.DEV) {
+      logCutPlan(project);
     }
-    return Math.round(videoRef.current.currentTime * 1000);
+  }, [project]);
+
+  useEffect(() => {
+    if (selectedCutId && !cuts.some((cut) => cut.id === selectedCutId)) {
+      setSelectedCutId(null);
+    }
+  }, [cuts, selectedCutId]);
+
+  useEffect(() => {
+    if (activeSegmentId && !segments.some((segment) => segment.id === activeSegmentId)) {
+      setActiveSegmentId(null);
+    }
+  }, [activeSegmentId, segments]);
+
+  const handleTogglePlay = async () => {
+    const video = videoRef.current;
+    if (!video || !canTransport) {
+      return;
+    }
+    if (!video.paused) {
+      video.pause();
+      return;
+    }
+    if (stopAtMs === null && keptRanges.length > 0) {
+      const currentMs = video.currentTime * 1000;
+      const currentRange = keptRanges.find(
+        (range) => currentMs >= range.inMs && currentMs < range.outMs
+      );
+      if (!currentRange) {
+        const nextRange = keptRanges.find((range) => currentMs < range.inMs) ?? keptRanges[0];
+        if (!nextRange) {
+          return;
+        }
+        video.currentTime = nextRange.inMs / 1000;
+        setCurrentTimeMs(nextRange.inMs);
+      }
+    }
+    try {
+      await video.play();
+    } catch {
+      setIsPlaying(false);
+    }
   };
 
-  const createCutId = (): string => {
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-      return crypto.randomUUID();
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
     }
-    return `cut_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    let updatedMs = video.currentTime * 1000;
+
+    if (stopAtMs !== null && updatedMs >= stopAtMs) {
+      video.pause();
+      setStopAtMs(null);
+      updatedMs = stopAtMs;
+    } else if (stopAtMs === null && keptRanges.length > 0 && isPlaying) {
+      const currentRange = keptRanges.find(
+        (range) => updatedMs >= range.inMs && updatedMs < range.outMs
+      );
+      if (!currentRange) {
+        const nextRange = keptRanges.find((range) => updatedMs < range.inMs);
+        if (nextRange) {
+          updatedMs = nextRange.inMs;
+          video.currentTime = nextRange.inMs / 1000;
+        } else {
+          const lastRange = keptRanges[keptRanges.length - 1];
+          if (lastRange) {
+            updatedMs = lastRange.outMs;
+          }
+          video.pause();
+        }
+      } else if (updatedMs >= currentRange.outMs) {
+        const nextRange = keptRanges.find((range) => range.inMs >= currentRange.outMs);
+        if (nextRange) {
+          updatedMs = nextRange.inMs;
+          video.currentTime = nextRange.inMs / 1000;
+        } else {
+          updatedMs = currentRange.outMs;
+          video.pause();
+        }
+      }
+    }
+
+    setCurrentTimeMs(updatedMs);
+    const nextActiveId = findActiveSegmentId(segments, updatedMs);
+    setActiveSegmentId(nextActiveId);
   };
 
   const handleRelinkClick = () => {
@@ -249,150 +334,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     }
     setRelinkStatus("loading");
     setRelinkError(null);
+    setLastRelinkFilename(file.name);
     try {
-      const updatedProject = await storage.relinkSource(project.projectId, file);
-      onProjectUpdated(updatedProject);
-      setLastRelinkFilename(file.name);
+      const updated = await storage.relinkSource(project.projectId, file);
+      onProjectUpdated(updated);
       setRelinkStatus("idle");
     } catch (error) {
       setRelinkStatus("error");
-      setRelinkError(error instanceof Error ? error.message : "Unknown error");
+      setRelinkError(error instanceof Error ? error.message : "Unable to relink source.");
     } finally {
       event.currentTarget.value = "";
-    }
-  };
-
-  const handleGenerateTranscript = async () => {
-    setTranscriptStatus("loading");
-    setTranscriptError(null);
-    try {
-      const transcript = buildStubTranscript(project.source.durationMs);
-      const updatedProject = await storage.setTranscript(project.projectId, transcript);
-      onProjectUpdated(updatedProject);
-      setTranscriptStatus("idle");
-    } catch (error) {
-      setTranscriptStatus("error");
-      setTranscriptError(error instanceof Error ? error.message : "Unknown error");
-    }
-  };
-
-  const handleExportFull = async () => {
-    setExportStatus("preparing");
-    setExportError(null);
-    setExportResult(null);
-    try {
-      const plan = buildRenderPlan(project);
-      setLastExportRequest(exportRequest);
-      const result = await exportFull(plan, storage, exportRequest, (phase) => setExportStatus(phase));
-      setExportResult(result);
-      setExportStatus("done");
-    } catch (error) {
-      setExportStatus("error");
-      setExportError(error instanceof Error ? error.message : "Export failed.");
-    }
-  };
-
-  const handleExportCut = async () => {
-    if (!selectedCut) {
-      setExportStatus("error");
-      setExportError("Select a cut to export.");
-      return;
-    }
-    setExportStatus("preparing");
-    setExportError(null);
-    setExportResult(null);
-    try {
-      const plan = buildClipPlan(project, selectedCut);
-      setLastExportRequest(exportRequest);
-      const result = await exportFull(plan, storage, exportRequest, (phase) => setExportStatus(phase));
-      setExportResult(result);
-      setExportStatus("done");
-    } catch (error) {
-      setExportStatus("error");
-      setExportError(error instanceof Error ? error.message : "Export failed.");
-    }
-  };
-
-  const handleMarkIn = () => {
-    const currentMs = getCurrentTimeMs();
-    if (currentMs === null) {
-      setCutError("Video not loaded.");
-      return;
-    }
-    setCutError(null);
-    setMarkInMs(currentMs);
-  };
-
-  const handleMarkOut = () => {
-    const currentMs = getCurrentTimeMs();
-    if (currentMs === null) {
-      setCutError("Video not loaded.");
-      return;
-    }
-    setCutError(null);
-    setMarkOutMs(currentMs);
-  };
-
-  const handleAddCut = async () => {
-    if (markInMs === null || markOutMs === null) {
-      setCutError("Mark both in and out before adding a cut.");
-      return;
-    }
-    if (markOutMs <= markInMs) {
-      setCutError("Out point must be after in point.");
-      return;
-    }
-    if (markOutMs - markInMs < MIN_CUT_DURATION_MS) {
-      setCutError(`Cut must be at least ${MIN_CUT_DURATION_MS}ms.`);
-      return;
-    }
-    if (markOutMs > project.source.durationMs) {
-      setCutError("Out point exceeds source duration.");
-      return;
-    }
-    setCutStatus("loading");
-    setCutError(null);
-    try {
-      const newCut: Cut = {
-        id: createCutId(),
-        inMs: markInMs,
-        outMs: markOutMs,
-        createdAt: new Date().toISOString(),
-      };
-      const nextCuts = [...cuts, newCut].sort((a, b) => a.inMs - b.inMs);
-      const updatedProject = await storage.setCuts(project.projectId, nextCuts);
-      onProjectUpdated(updatedProject);
-      logCutPlan(updatedProject);
-      setMarkInMs(null);
-      setMarkOutMs(null);
-      setCutStatus("idle");
-    } catch (error) {
-      setCutStatus("error");
-      setCutError(error instanceof Error ? error.message : "Failed to add cut.");
-    }
-  };
-
-  const handlePlayCut = (cut: Cut) => {
-    if (!videoRef.current) {
-      return;
-    }
-    videoRef.current.currentTime = cut.inMs / 1000;
-    setStopAtMs(cut.outMs);
-    void videoRef.current.play().catch(() => undefined);
-  };
-
-  const handleDeleteCut = async (cutId: string) => {
-    setCutStatus("loading");
-    setCutError(null);
-    try {
-      const nextCuts = cuts.filter((cut) => cut.id !== cutId);
-      const updatedProject = await storage.setCuts(project.projectId, nextCuts);
-      onProjectUpdated(updatedProject);
-      logCutPlan(updatedProject);
-      setCutStatus("idle");
-    } catch (error) {
-      setCutStatus("error");
-      setCutError(error instanceof Error ? error.message : "Failed to delete cut.");
     }
   };
 
@@ -410,134 +361,203 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     try {
       const text = await file.text();
       const transcript = importTranscriptJson(text);
-      const updatedProject = await storage.setTranscript(project.projectId, transcript);
-      onProjectUpdated(updatedProject);
+      const updated = await storage.setTranscript(project.projectId, transcript);
+      onProjectUpdated(updated);
       setTranscriptStatus("idle");
     } catch (error) {
       setTranscriptStatus("error");
-      setTranscriptError(error instanceof Error ? error.message : "Failed to import transcript.");
+      setTranscriptError(
+        error instanceof Error ? error.message : "Unable to import transcript."
+      );
     } finally {
       event.currentTarget.value = "";
     }
   };
 
-  const handleSegmentClick = (segment: TranscriptSegment, segmentId: string) => {
-    if (!videoRef.current) {
-      return;
+  const handleGenerateTranscript = async () => {
+    setTranscriptStatus("loading");
+    setTranscriptError(null);
+    try {
+      const transcript = buildStubTranscript(project.source.durationMs);
+      const updated = await storage.setTranscript(project.projectId, transcript);
+      onProjectUpdated(updated);
+      setTranscriptStatus("idle");
+    } catch (error) {
+      setTranscriptStatus("error");
+      setTranscriptError(error instanceof Error ? error.message : "Unable to save transcript.");
     }
-    videoRef.current.currentTime = segment.startMs / 1000;
-    void videoRef.current.play().catch(() => undefined);
-    setActiveSegmentId(segmentId);
   };
 
-  const handleTimeUpdate = () => {
+  const handleSegmentClick = (segment: TranscriptSegment) => {
     const video = videoRef.current;
     if (!video) {
       return;
     }
-    const currentMs = video.currentTime * 1000;
-    if (stopAtMs !== null && currentMs >= stopAtMs) {
-      video.pause();
-      setStopAtMs(null);
+    video.currentTime = segment.startMs / 1000;
+    video.play().catch(() => {
+      setIsPlaying(false);
+    });
+  };
+
+  const handleMarkIn = () => {
+    const video = videoRef.current;
+    const nextMs = video ? Math.round(video.currentTime * 1000) : currentTimeMs;
+    setMarkInMs(nextMs);
+    if (markOutMs !== null && markOutMs <= nextMs) {
+      setMarkOutMs(null);
+    }
+  };
+
+  const handleMarkOut = () => {
+    const video = videoRef.current;
+    const nextMs = video ? Math.round(video.currentTime * 1000) : currentTimeMs;
+    setMarkOutMs(nextMs);
+  };
+
+  const handleAddCut = async () => {
+    if (!isCutValid || markInMs === null || markOutMs === null) {
+      setCutError("Mark in/out needs at least 0.5s and must be within duration.");
       return;
     }
-    if (stopAtMs === null) {
-      if (keptRanges.length === 0) {
-        video.pause();
-        return;
-      }
-      const activeCut = normalizedCuts.find(
-        (cut) => currentMs >= cut.inMs && currentMs < cut.outMs
-      );
-      if (activeCut) {
-        const nextMs = activeCut.outMs;
-        if (nextMs >= durationMs) {
-          video.pause();
-          return;
-        }
-        video.currentTime = nextMs / 1000;
-        return;
-      }
-      const lastKept = keptRanges[keptRanges.length - 1];
-      if (lastKept && currentMs >= lastKept.outMs) {
-        video.pause();
-        return;
-      }
+    setCutStatus("loading");
+    setCutError(null);
+    try {
+      const nextCuts = [...cuts, { id: createId(), inMs: markInMs, outMs: markOutMs }];
+      const updated = await storage.setCuts(project.projectId, nextCuts);
+      onProjectUpdated(updated);
+      setMarkInMs(null);
+      setMarkOutMs(null);
+      setCutStatus("idle");
+    } catch (error) {
+      setCutStatus("error");
+      setCutError(error instanceof Error ? error.message : "Unable to save cut.");
     }
-    let nextActiveId: string | null = null;
-    for (let i = segments.length - 1; i >= 0; i -= 1) {
-      const segment = segments[i];
-      if (!segment) {
-        continue;
-      }
-      const segmentId = segment.id ?? `segment_${i}_${segment.startMs}`;
-      const withinStart = currentMs >= segment.startMs;
-      const withinEnd = typeof segment.endMs === "number" ? currentMs < segment.endMs : true;
-      if (withinStart && withinEnd) {
-        nextActiveId = segmentId;
-        break;
-      }
-    }
-    setActiveSegmentId((prev) => (prev === nextActiveId ? prev : nextActiveId));
   };
+
+  const handleDeleteCut = async (cutId: string) => {
+    setCutStatus("loading");
+    setCutError(null);
+    try {
+      const nextCuts = cuts.filter((cut) => cut.id !== cutId);
+      const updated = await storage.setCuts(project.projectId, nextCuts);
+      onProjectUpdated(updated);
+      setCutStatus("idle");
+    } catch (error) {
+      setCutStatus("error");
+      setCutError(error instanceof Error ? error.message : "Unable to delete cut.");
+    }
+  };
+
+  const handlePlayCut = async (cut: Cut) => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    setStopAtMs(cut.outMs);
+    video.currentTime = cut.inMs / 1000;
+    setCurrentTimeMs(cut.inMs);
+    try {
+      await video.play();
+    } catch {
+      setIsPlaying(false);
+    }
+  };
+
+  const handleExport = async (plan: RenderPlan) => {
+    setExportStatus("preparing");
+    setExportError(null);
+    setExportResult(null);
+    setLastExportRequest(exportRequest);
+    try {
+      const result = await exportFull(plan, storage, exportRequest, (phase) => {
+        setExportStatus(phase);
+      });
+      setExportResult(result);
+      setExportStatus("done");
+    } catch (error) {
+      setExportStatus("error");
+      setExportError(error instanceof Error ? error.message : "Export failed.");
+    }
+  };
+
+  const handleExportFull = async () => {
+    if (exportBusy) {
+      return;
+    }
+    const plan = buildRenderPlan(project);
+    await handleExport(plan);
+  };
+
+  const handleExportCut = async () => {
+    if (!selectedCut || exportBusy) {
+      return;
+    }
+    const plan = buildClipPlan(project, selectedCut);
+    await handleExport(plan);
+  };
+
   return (
-    <div className="hammer-page">
-      <div className="hammer-header">
-        <button onClick={onBack}>← Back</button>
-        <h1 className="hammer-title">Hammer v0.01</h1>
-        <div className="hammer-header-actions">
-          <label className="export-field">
-            <span className="export-field-label">Export format</span>
-            <select
-              value={exportContainer}
-              onChange={(event) => setExportContainer(event.target.value as ExportContainer)}
-              disabled={exportBusy}
-              aria-label="Export format"
-              title="MP4 export is coming soon"
+    <div className="hm-editor">
+      <div className="hm-topbar">
+        <div className="hm-topbar-left">
+          <button className="hm-button hm-button--ghost" onClick={onBack}>
+            Back
+          </button>
+          <div className="hm-title-block">
+            <div className="hm-project-title">{project.title ?? "Untitled project"}</div>
+            <div className="hm-project-subtitle">{project.source.filename}</div>
+          </div>
+        </div>
+        <div className="hm-topbar-center">
+          <button
+            className="hm-button hm-button--ghost"
+            onClick={handleTogglePlay}
+            disabled={!canTransport}
+          >
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <div className="hm-timecode">{formatTimestamp(currentTimeMs)}</div>
+        </div>
+        <div className="hm-topbar-right">
+          <div className="hm-export-controls">
+            <label className="export-field">
+              <span className="export-field-label">Format</span>
+              <select
+                value={exportContainer}
+                onChange={(event) => setExportContainer(event.target.value as ExportContainer)}
+                disabled={exportBusy}
+                aria-label="Export format"
+                title="MP4 export is coming soon"
+              >
+                <option value="webm">WebM (Fast)</option>
+                <option value="mp4" disabled>
+                  MP4 (Coming soon)
+                </option>
+              </select>
+            </label>
+            <label className="export-field">
+              <span className="export-field-label">Audio</span>
+              <input
+                type="checkbox"
+                checked={exportIncludeAudio}
+                onChange={(event) => setExportIncludeAudio(event.target.checked)}
+                disabled={exportBusy}
+              />
+            </label>
+            <button className="hm-button" onClick={handleExportFull} disabled={exportBusy}>
+              Export Full
+            </button>
+            <button
+              className="hm-button hm-button--ghost"
+              onClick={handleExportCut}
+              disabled={!canExportCut}
             >
-              <option value="webm">WebM (Fast)</option>
-              <option value="mp4" disabled>
-                MP4 (Coming soon)
-              </option>
-            </select>
-          </label>
-          <label className="export-field">
-            <span className="export-field-label">Include audio</span>
-            <input
-              type="checkbox"
-              checked={exportIncludeAudio}
-              onChange={(event) => setExportIncludeAudio(event.target.checked)}
-              disabled={exportBusy}
-            />
-          </label>
-          <button onClick={handleExportFull} disabled={exportBusy}>
-            Export Full
-          </button>
-          <button onClick={handleExportCut} disabled={!canExportCut}>
-            Export Cut
-          </button>
-          {exportStatusLabel && <span className="export-status">{exportStatusLabel}</span>}
+              Export Cut
+            </button>
+          </div>
+          {exportStatusLabel && <div className="hm-export-status">{exportStatusLabel}</div>}
         </div>
       </div>
-
-      {exportStatus === "error" && exportError && (
-        <p className="export-summary">Export error: {exportError}</p>
-      )}
-      {exportStatus === "done" && exportResult && (
-        <p className="export-summary">
-          Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)}, {exportResult.bytes}{" "}
-          bytes, {exportResult.mime}, {exportResult.container})
-          {import.meta.env.DEV
-            ? `, engine: ${exportResult.engine}${exportAudioLabel ? `, ${exportAudioLabel}` : ""}${
-                exportCodecLabel ? `, ${exportCodecLabel}` : ""
-              }`
-            : ""}
-        </p>
-      )}
-
-      <p className="hammer-subtitle">
-        Editor shell (metadata + preview). Next: transcript panel.
-      </p>
 
       <input
         id="relink-source-input"
@@ -559,168 +579,235 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         title="Import transcript JSON"
       />
 
-      <div className="section">
-        {assetStatus === "loading" && <p>Loading video...</p>}
-        {assetStatus === "error" && (
-          <div>
-            <p>{assetError ?? "Source media not found on this device."}</p>
-            <p className="muted stacked-gap">
-              Stored source: {project.source.filename}
-            </p>
-            {lastRelinkFilename && (
-              <p className="muted stacked-gap">
-                Selected file: {lastRelinkFilename}
-              </p>
-            )}
-            <button onClick={handleRelinkClick} disabled={relinkStatus === "loading"}>
-              Re-link source file
+      <div className="hm-content">
+        <aside className="hm-leftrail">
+          <div className="hm-leftrail-tabs">
+            <button className="hm-tab active" type="button">
+              Transcript
             </button>
-            {relinkStatus === "error" && (
-              <p className="stacked-gap">Re-link failed: {relinkError}</p>
-            )}
-            {relinkStatus === "loading" && <p className="stacked-gap">Re-linking...</p>}
-            {canRetry && (
-              <button
-                className="retry-button"
-                onClick={() => setRetryCount((count) => count + 1)}
-                disabled={relinkStatus === "loading"}
-              >
-                Retry load
-              </button>
-            )}
-          </div>
-        )}
-        {videoUrl && (
-          <video
-            ref={videoRef}
-            controls
-            src={videoUrl}
-            onTimeUpdate={handleTimeUpdate}
-            className="editor-video"
-          />
-        )}
-      </div>
-
-      <div className="cuts-section">
-        <div className="cuts-header">
-          <h2 className="cuts-title">Cuts</h2>
-          <div className="cuts-actions">
-            <button onClick={handleMarkIn} disabled={cutStatus === "loading"}>
-              Mark In
+            <button className="hm-tab" type="button" disabled>
+              Retakes
             </button>
-            <button onClick={handleMarkOut} disabled={cutStatus === "loading"}>
-              Mark Out
+            <button className="hm-tab" type="button" disabled>
+              Shorts
             </button>
-            <button onClick={handleAddCut} disabled={cutStatus === "loading" || !isCutValid}>
-              Add Cut
+            <button className="hm-tab" type="button" disabled>
+              Captions
+            </button>
+            <button className="hm-tab" type="button" disabled>
+              Assets
+            </button>
+            <button className="hm-tab" type="button" disabled>
+              Templates
             </button>
           </div>
-        </div>
-        <div className="cuts-marks">
-          <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "—"}</div>
-          <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "—"}</div>
-          <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
-        </div>
-        {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
-        {cuts.length === 0 ? (
-          <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
-        ) : (
-          <div className="cuts-list">
-            {cuts.map((cut) => (
-              <div
-                key={cut.id}
-                className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
-                onClick={() => setSelectedCutId(cut.id)}
-              >
-                <div className="cut-info">
-                  <div className="cut-times">
-                    {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
-                  </div>
-                  <div className="cut-duration">
-                    Duration: {formatDuration(cut.outMs - cut.inMs)}
-                  </div>
-                </div>
-                <div className="cut-actions">
+          <div className="hm-leftrail-panels">
+            <section className="hm-panel hm-panel--transcript">
+              <div className="hm-panel-header">
+                <h2 className="hm-panel-title">Transcript</h2>
+                <div className="hm-panel-actions">
                   <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handlePlayCut(cut);
-                    }}
+                    className="hm-button hm-button--ghost"
+                    onClick={handleImportTranscriptClick}
+                    disabled={transcriptStatus === "loading"}
                   >
-                    Play
+                    Import JSON
                   </button>
                   <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleDeleteCut(cut.id);
-                    }}
+                    className="hm-button"
+                    onClick={handleGenerateTranscript}
+                    disabled={transcriptStatus === "loading"}
                   >
-                    Delete
+                    {segments.length > 0 ? "Regenerate" : "Generate stub"}
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="transcript-section">
-        <div className="transcript-header">
-          <h2 className="transcript-title">Transcript</h2>
-          <div className="transcript-actions">
-            <button
-              onClick={handleImportTranscriptClick}
-              disabled={transcriptStatus === "loading"}
-            >
-              Import transcript (JSON)
-            </button>
-            <button onClick={handleGenerateTranscript} disabled={transcriptStatus === "loading"}>
-              {segments.length > 0 ? "Regenerate stub transcript" : "Generate stub transcript"}
-            </button>
-          </div>
-        </div>
-        {transcriptStatus === "error" && (
-          <p className="stacked-gap">Transcript error: {transcriptError}</p>
-        )}
-        {segments.length === 0 ? (
-          <p className="muted stacked-gap-lg">
-            No transcript yet. Generate a stub to wire up interaction.
-          </p>
-        ) : (
-          <div className="transcript-list">
-            {segments.map((segment, index) => {
-              const segmentId = segment.id ?? `segment_${index}_${segment.startMs}`;
-              const isActive = segmentId === activeSegmentId;
-              return (
-                <button
-                  key={segmentId}
-                  onClick={() => handleSegmentClick(segment, segmentId)}
-                  className={`transcript-segment${isActive ? " active" : ""}`}
-                >
-                  <div className="transcript-timestamp">
-                    {formatTimestamp(segment.startMs)}
+              <div className="hm-panel-body">
+                {transcriptStatus === "error" && (
+                  <p className="stacked-gap">Transcript error: {transcriptError}</p>
+                )}
+                {segments.length === 0 ? (
+                  <p className="muted stacked-gap-lg">
+                    No transcript yet. Generate a stub to wire up interaction.
+                  </p>
+                ) : (
+                  <div className="transcript-list">
+                    {segments.map((segment) => {
+                      const isActive = segment.id === activeSegmentId;
+                      return (
+                        <button
+                          key={segment.id}
+                          onClick={() => handleSegmentClick(segment)}
+                          className={`transcript-segment${isActive ? " active" : ""}`}
+                        >
+                          <div className="transcript-timestamp">
+                            {formatTimestamp(segment.startMs)}
+                          </div>
+                          <div className="transcript-text">{segment.text}</div>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="transcript-text">{segment.text}</div>
-                </button>
-              );
-            })}
+                )}
+              </div>
+            </section>
+
+            <section className="hm-panel hm-panel--cuts">
+              <div className="hm-panel-header">
+                <h2 className="hm-panel-title">Cuts</h2>
+                <div className="hm-panel-actions">
+                  <button
+                    className="hm-button hm-button--ghost"
+                    onClick={handleMarkIn}
+                    disabled={cutStatus === "loading"}
+                  >
+                    Mark In
+                  </button>
+                  <button
+                    className="hm-button hm-button--ghost"
+                    onClick={handleMarkOut}
+                    disabled={cutStatus === "loading"}
+                  >
+                    Mark Out
+                  </button>
+                  <button
+                    className="hm-button"
+                    onClick={handleAddCut}
+                    disabled={cutStatus === "loading" || !isCutValid}
+                  >
+                    Add Cut
+                  </button>
+                </div>
+              </div>
+              <div className="hm-panel-body">
+                <div className="cuts-marks">
+                  <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
+                  <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
+                  <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
+                </div>
+                {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
+                {cuts.length === 0 ? (
+                  <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
+                ) : (
+                  <div className="cuts-list">
+                    {cuts.map((cut) => (
+                      <div
+                        key={cut.id}
+                        className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
+                        onClick={() => setSelectedCutId(cut.id)}
+                      >
+                        <div className="cut-info">
+                          <div className="cut-times">
+                            {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
+                          </div>
+                          <div className="cut-duration">
+                            Duration: {formatDuration(cut.outMs - cut.inMs)}
+                          </div>
+                        </div>
+                        <div className="cut-actions">
+                          <button
+                            className="hm-button hm-button--ghost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handlePlayCut(cut);
+                            }}
+                          >
+                            Play
+                          </button>
+                          <button
+                            className="hm-button hm-button--ghost"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleDeleteCut(cut.id);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
-        )}
+        </aside>
+
+        <main className="hm-stage">
+          <div className="hm-stage-inner">
+            {assetStatus === "loading" && <div className="hm-stage-card">Loading video...</div>}
+            {assetStatus === "error" && (
+              <div className="hm-stage-card">
+                <p>{assetError ?? "Source media not found on this device."}</p>
+                <p className="muted stacked-gap">Stored source: {project.source.filename}</p>
+                {lastRelinkFilename && (
+                  <p className="muted stacked-gap">Selected file: {lastRelinkFilename}</p>
+                )}
+                <button
+                  className="hm-button"
+                  onClick={handleRelinkClick}
+                  disabled={relinkStatus === "loading"}
+                >
+                  Re-link source file
+                </button>
+                {relinkStatus === "error" && (
+                  <p className="stacked-gap">Re-link failed: {relinkError}</p>
+                )}
+                {relinkStatus === "loading" && <p className="stacked-gap">Re-linking...</p>}
+                {canRetry && (
+                  <button
+                    className="hm-button hm-button--ghost"
+                    onClick={() => setRetryCount((count) => count + 1)}
+                    disabled={relinkStatus === "loading"}
+                  >
+                    Retry load
+                  </button>
+                )}
+              </div>
+            )}
+            {videoUrl && (
+              <video
+                ref={videoRef}
+                controls
+                src={videoUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
+                className="hm-stage-video"
+              />
+            )}
+          </div>
+        </main>
       </div>
 
-      <div className="section">
-        <div>
-          <b>Project ID:</b> {project.projectId}
+      <div className="hm-timeline">
+        <div className="hm-timeline-track">
+          <div className="hm-timeline-rail">
+            <div className="hm-timeline-playhead" />
+          </div>
         </div>
-        <div>
-          <b>Source:</b> {project.source.filename}
-        </div>
-        <div>
-          <b>Duration:</b> {project.source.durationMs} ms ({project.source.width}x
-          {project.source.height})
-        </div>
-        <div className="meta-muted">
-          Created: {project.createdAt} • Updated: {project.updatedAt}
+        <div className="hm-timeline-footer">
+          <div className="hm-timeline-meta">
+            Duration: {formatDuration(project.source.durationMs)} | {project.source.width}x
+            {project.source.height} | Updated: {new Date(project.updatedAt).toLocaleString()}
+          </div>
+          {exportStatus === "error" && exportError && (
+            <div className="hm-export-summary hm-export-summary--error">
+              Export error: {exportError}
+            </div>
+          )}
+          {exportStatus === "done" && exportResult && (
+            <div className="hm-export-summary">
+              Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)},
+              {" "}{exportResult.bytes} bytes, {exportResult.mime}, {exportResult.container})
+              {import.meta.env.DEV
+                ? ` | engine: ${exportResult.engine}${exportAudioLabel ? ` | ${exportAudioLabel}` : ""}${
+                    exportCodecLabel ? ` | ${exportCodecLabel}` : ""
+                  }`
+                : ""}
+            </div>
+          )}
         </div>
       </div>
     </div>
