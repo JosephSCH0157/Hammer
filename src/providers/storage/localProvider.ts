@@ -128,11 +128,38 @@ const createId = (): string => {
   return `id_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 };
 
+const namespaceAssetId = (providerId: string, assetId: string): string =>
+  `${providerId}:${assetId}`;
+
+const splitAssetId = (assetId: string): { providerId: string | null; rawId: string } => {
+  const separatorIndex = assetId.indexOf(":");
+  if (separatorIndex <= 0) {
+    return { providerId: null, rawId: assetId };
+  }
+  return {
+    providerId: assetId.slice(0, separatorIndex),
+    rawId: assetId.slice(separatorIndex + 1),
+  };
+};
+
+const buildAssetLookupIds = (assetId: string, providerId: string): string[] => {
+  const parsed = splitAssetId(assetId);
+  if (parsed.providerId) {
+    if (parsed.providerId !== providerId) {
+      throw new Error(
+        `Asset provider mismatch: expected "${providerId}", got "${parsed.providerId}"`
+      );
+    }
+    return [assetId, parsed.rawId];
+  }
+  return [assetId, namespaceAssetId(providerId, assetId)];
+};
+
 export class LocalStorageProvider implements StorageProvider {
   id = "local";
 
   async putAsset(file: File): Promise<{ assetId: string; meta: any }> {
-    const assetId = createId();
+    const assetId = namespaceAssetId(this.id, createId());
     assetStore.set(assetId, file);
     try {
       await putAssetRecord({
@@ -157,27 +184,38 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async getAsset(assetId: string): Promise<Blob> {
-    const asset = assetStore.get(assetId);
-    if (!asset) {
-      try {
-        const record = await getAssetRecord(assetId);
-        if (!record) {
-          throw new Error(`Asset not found: ${assetId}`);
+    const lookupIds = buildAssetLookupIds(assetId, this.id);
+    for (const lookupId of lookupIds) {
+      const asset = assetStore.get(lookupId);
+      if (asset) {
+        if (lookupId !== assetId) {
+          assetStore.set(assetId, asset);
         }
-        assetStore.set(assetId, record.blob);
-        return record.blob;
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith("Asset not found")) {
-          throw error;
-        }
-        throw new Error(
-          `Asset lookup failed for ${assetId}: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
+        return asset;
       }
     }
-    return asset;
+    try {
+      for (const lookupId of lookupIds) {
+        const record = await getAssetRecord(lookupId);
+        if (record) {
+          assetStore.set(lookupId, record.blob);
+          if (lookupId !== assetId) {
+            assetStore.set(assetId, record.blob);
+          }
+          return record.blob;
+        }
+      }
+      throw new Error(`Asset not found: ${assetId}`);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("Asset not found")) {
+        throw error;
+      }
+      throw new Error(
+        `Asset lookup failed for ${assetId}: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   }
 
   async saveProject(doc: ProjectDoc): Promise<void> {

@@ -188,6 +188,8 @@ never hardcode paths
 
 store only assetId + metadata
 
+assetId is namespaced by provider id (e.g., local:abc123)
+
 ProjectDoc is the portable truth
 
 Storage invariants:
