@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { ProjectDoc, Transcript } from "../../core/types/project";
+import type { ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
+import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
 
 const formatTimestamp = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -24,7 +25,7 @@ const buildStubTranscript = (durationMs: number): Transcript => {
   const segmentsSource = filtered.length > 0 ? filtered : script.slice(0, 1);
   const segments = segmentsSource.map((segment, index) => {
     const next = segmentsSource[index + 1];
-    const entry: Transcript["segments"][number] = {
+    const entry: TranscriptSegment = {
       id: `stub_${index}_${segment.startMs}`,
       startMs: segment.startMs,
       text: segment.text,
@@ -60,6 +61,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [retryCount, setRetryCount] = useState(0);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
+  const importTranscriptRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const segments = project.transcript?.segments ?? [];
   const canRetry = showRetry || Boolean(assetError?.includes("IndexedDB open blocked"));
@@ -160,7 +162,32 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     }
   };
 
-  const handleSegmentClick = (segment: Transcript["segments"][number], segmentId: string) => {
+  const handleImportTranscriptClick = () => {
+    importTranscriptRef.current?.click();
+  };
+
+  const handleImportTranscriptChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    if (!file) {
+      return;
+    }
+    setTranscriptStatus("loading");
+    setTranscriptError(null);
+    try {
+      const text = await file.text();
+      const transcript = importTranscriptJson(text);
+      const updatedProject = await storage.setTranscript(project.projectId, transcript);
+      onProjectUpdated(updatedProject);
+      setTranscriptStatus("idle");
+    } catch (error) {
+      setTranscriptStatus("error");
+      setTranscriptError(error instanceof Error ? error.message : "Failed to import transcript.");
+    } finally {
+      event.currentTarget.value = "";
+    }
+  };
+
+  const handleSegmentClick = (segment: TranscriptSegment, segmentId: string) => {
     if (!videoRef.current) {
       return;
     }
@@ -211,6 +238,15 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         hidden
         aria-label="Re-link source media file"
         title="Re-link source media file"
+      />
+      <input
+        ref={importTranscriptRef}
+        type="file"
+        accept="application/json,.json"
+        onChange={handleImportTranscriptChange}
+        hidden
+        aria-label="Import transcript JSON"
+        title="Import transcript JSON"
       />
 
       <div style={{ marginTop: 16 }}>
@@ -272,9 +308,17 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           }}
         >
           <h2 style={{ margin: 0, fontSize: 16 }}>Transcript</h2>
-          <button onClick={handleGenerateTranscript} disabled={transcriptStatus === "loading"}>
-            {segments.length > 0 ? "Regenerate stub transcript" : "Generate stub transcript"}
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={handleImportTranscriptClick}
+              disabled={transcriptStatus === "loading"}
+            >
+              Import transcript (JSON)
+            </button>
+            <button onClick={handleGenerateTranscript} disabled={transcriptStatus === "loading"}>
+              {segments.length > 0 ? "Regenerate stub transcript" : "Generate stub transcript"}
+            </button>
+          </div>
         </div>
         {transcriptStatus === "error" && (
           <p style={{ marginTop: 8 }}>Transcript error: {transcriptError}</p>

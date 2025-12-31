@@ -37,10 +37,17 @@ export type ProjectDoc = {
   };
 };
 
+export type TranscriptSegment = {
+  id: string;
+  startMs: number;
+  endMs?: number;
+  text: string;
+};
+
 export type Transcript = {
   engine?: string;
   language?: string;
-  segments: Array<{ id: string; startMs: number; endMs?: number; text: string }>;
+  segments: TranscriptSegment[];
 };
 
 export type ShortClip = {
