@@ -11,7 +11,13 @@ export function App() {
   const [screen, setScreen] = useState<Screen>({ kind: "picker" });
 
   if (screen.kind === "editor") {
-    return <EditorPage project={screen.project} onBack={() => setScreen({ kind: "picker" })} />;
+    return (
+      <EditorPage
+        project={screen.project}
+        storage={storage}
+        onBack={() => setScreen({ kind: "picker" })}
+      />
+    );
   }
 
   return (
