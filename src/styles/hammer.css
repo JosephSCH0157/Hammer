@@ -476,6 +476,7 @@ textarea:focus {
   width: 100%;
   border-radius: 999px;
   background: var(--forge-border);
+  overflow: visible;
 }
 
 .hm-timeline-playhead {
@@ -486,6 +487,74 @@ textarea:focus {
   height: 18px;
   background: var(--forge-accent);
   border-radius: 2px;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.hm-timeline-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--forge-accent);
+  opacity: 0.18;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hm-marker {
+  position: absolute;
+  top: -6px;
+  width: 2px;
+  height: 22px;
+  border: none;
+  padding: 0;
+  background: var(--forge-accent);
+  border-radius: 2px;
+  transform: translateX(-50%);
+  cursor: pointer;
+  z-index: 4;
+}
+
+.hm-marker::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 4px;
+  background: var(--forge-accent);
+  transform: translateX(-50%);
+}
+
+.hm-marker--out,
+.hm-marker--out::after {
+  background: var(--forge-accent-2);
+}
+
+.hm-scissor {
+  position: absolute;
+  top: -32px;
+  border: 1px solid var(--forge-border);
+  background: var(--forge-panel-2);
+  color: var(--forge-text);
+  border-radius: 10px;
+  padding: 4px;
+  transform: translateX(-50%);
+  box-shadow: var(--forge-shadow-soft);
+  cursor: pointer;
+  z-index: 5;
+}
+
+.hm-scissor svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.hm-scissor:hover {
+  border-color: var(--forge-border-strong);
 }
 
 .hm-timeline-footer {

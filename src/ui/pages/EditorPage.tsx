@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, MouseEvent } from "react";
 import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
@@ -125,6 +125,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [timelineHoverMs, setTimelineHoverMs] = useState<number | null>(null);
   const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
   const [exportIncludeAudio, setExportIncludeAudio] = useState(true);
   const [exportStatus, setExportStatus] = useState<
@@ -174,6 +175,31 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     includeAudio: exportIncludeAudio,
   };
   const canExportCut = Boolean(selectedCut) && !exportBusy;
+  const safeDurationMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0;
+  const percentForMs = (ms: number): number => {
+    if (safeDurationMs <= 0) {
+      return 0;
+    }
+    const clamped = Math.min(Math.max(ms, 0), safeDurationMs);
+    return (clamped / safeDurationMs) * 100;
+  };
+  const selectionRange =
+    markInMs !== null && markOutMs !== null
+      ? {
+          startMs: Math.min(markInMs, markOutMs),
+          endMs: Math.max(markInMs, markOutMs),
+        }
+      : null;
+  const selectionStyle =
+    selectionRange && selectionRange.endMs > selectionRange.startMs
+      ? {
+          left: `${percentForMs(selectionRange.startMs)}%`,
+          width: `${percentForMs(selectionRange.endMs) - percentForMs(selectionRange.startMs)}%`,
+        }
+      : undefined;
+  const playheadStyle = { left: `${percentForMs(currentTimeMs)}%` };
+  const hoverStyle =
+    timelineHoverMs !== null ? { left: `${percentForMs(timelineHoverMs)}%` } : undefined;
   const exportAudioLabel = exportResult
     ? exportResult.audioIncluded
       ? "mode: audio+video"
@@ -397,6 +423,36 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     video.play().catch(() => {
       setIsPlaying(false);
     });
+  };
+
+  const handleSeekTo = (ms: number) => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    const clamped = safeDurationMs > 0 ? Math.min(Math.max(ms, 0), safeDurationMs) : ms;
+    video.currentTime = clamped / 1000;
+    setCurrentTimeMs(clamped);
+    setActiveSegmentId(findActiveSegmentId(segments, clamped));
+  };
+
+  const handleTimelineMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    if (safeDurationMs <= 0) {
+      setTimelineHoverMs(null);
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0) {
+      setTimelineHoverMs(null);
+      return;
+    }
+    const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+    setTimelineHoverMs((x / rect.width) * safeDurationMs);
+  };
+
+  const handleTimelineMouseLeave = () => {
+    setTimelineHoverMs(null);
   };
 
   const handleMarkIn = () => {
@@ -787,8 +843,50 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </div>
         </div>
         <div className="hm-timeline-track">
-          <div className="hm-timeline-rail">
-            <div className="hm-timeline-playhead" />
+          <div
+            className="hm-timeline-rail"
+            onMouseMove={handleTimelineMouseMove}
+            onMouseLeave={handleTimelineMouseLeave}
+          >
+            {selectionStyle && <div className="hm-timeline-range" style={selectionStyle} />}
+            {markInMs !== null && (
+              <button
+                type="button"
+                className="hm-marker hm-marker--in"
+                style={{ left: `${percentForMs(markInMs)}%` }}
+                onClick={() => handleSeekTo(markInMs)}
+                aria-label="Jump to In marker"
+                title="Jump to In marker"
+              />
+            )}
+            {markOutMs !== null && (
+              <button
+                type="button"
+                className="hm-marker hm-marker--out"
+                style={{ left: `${percentForMs(markOutMs)}%` }}
+                onClick={() => handleSeekTo(markOutMs)}
+                aria-label="Jump to Out marker"
+                title="Jump to Out marker"
+              />
+            )}
+            <div className="hm-timeline-playhead" style={playheadStyle} />
+            {hoverStyle && (
+              <button
+                type="button"
+                className="hm-scissor"
+                style={hoverStyle}
+                onClick={() => void handleAddCut()}
+                aria-label="Add cut at playhead"
+                title="Add cut at playhead"
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="4" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  <circle cx="4" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  <line x1="6" y1="6" x2="14" y2="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="6" y1="10" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
         <div className="hm-timeline-footer">
