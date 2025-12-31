@@ -16,6 +16,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [assetError, setAssetError] = useState<string | null>(null);
   const [relinkStatus, setRelinkStatus] = useState<"idle" | "loading" | "error">("idle");
   const [relinkError, setRelinkError] = useState<string | null>(null);
+  const [lastRelinkFilename, setLastRelinkFilename] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
@@ -44,7 +45,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         if (error instanceof Error && error.message.startsWith("Asset not found")) {
           setAssetError("Source media not found on this device.");
         } else {
-          setAssetError("Unable to load source media.");
+          setAssetError(error instanceof Error ? error.message : "Unable to load source media.");
         }
       }
     };
@@ -58,6 +59,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       }
     };
   }, [project.source.asset.assetId, storage, retryCount]);
+
+  useEffect(() => {
+    setRelinkStatus("idle");
+    setRelinkError(null);
+    setLastRelinkFilename(null);
+  }, [project.projectId]);
 
   const handleRelinkClick = () => {
     relinkInputRef.current?.click();
@@ -73,6 +80,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     try {
       const updatedProject = await storage.relinkSource(project.projectId, file);
       onProjectUpdated(updatedProject);
+      setLastRelinkFilename(file.name);
       setRelinkStatus("idle");
     } catch (error) {
       setRelinkStatus("error");
@@ -105,6 +113,14 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         {assetStatus === "error" && (
           <div>
             <p>{assetError ?? "Source media not found on this device."}</p>
+            <p style={{ marginTop: 8, opacity: 0.8 }}>
+              Stored source: {project.source.filename}
+            </p>
+            {lastRelinkFilename && (
+              <p style={{ marginTop: 8, opacity: 0.8 }}>
+                Selected file: {lastRelinkFilename}
+              </p>
+            )}
             <button onClick={handleRelinkClick} disabled={relinkStatus === "loading"}>
               Re-link source file
             </button>
@@ -116,7 +132,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               <button
                 style={{ marginLeft: 8 }}
                 onClick={() => setRetryCount((count) => count + 1)}
-                disabled={assetStatus === "loading"}
+                disabled={relinkStatus === "loading"}
               >
                 Retry load
               </button>
