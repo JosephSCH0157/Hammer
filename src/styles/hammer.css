@@ -481,6 +481,12 @@ textarea:focus {
   background: var(--forge-panel-2);
 }
 
+.hm-rightTabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .hm-assetbinTitle {
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -491,6 +497,15 @@ textarea:focus {
   padding: 12px;
   display: grid;
   gap: 12px;
+}
+
+.hm-right-panel {
+  border: 1px solid var(--forge-border);
+  border-radius: 12px;
+  background: var(--forge-panel-2);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .hm-assetbinActions {

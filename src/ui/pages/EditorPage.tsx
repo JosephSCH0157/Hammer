@@ -225,6 +225,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [activeLeftTab, setActiveLeftTab] = useState<
     "transcript" | "retakes" | "shorts" | "captions" | "assets" | "templates"
   >("transcript");
+  const [activeRightTab, setActiveRightTab] = useState<"assets" | "transcript">("assets");
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
   const importTranscriptRef = useRef<HTMLInputElement | null>(null);
@@ -1146,123 +1147,61 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </button>
         </div>
         <div className="hm-leftrail-panels">
-          {activeLeftTab === "transcript" && (
-            <>
-              <section className="hm-panel hm-panel--transcript">
-                <div className="hm-panel-header">
-                  <div className="hm-panel-titleRow">
-                    <h2 className="hm-panel-title">Transcript</h2>
-                    <span className="hm-panel-count">{segments.length} segments</span>
-                  </div>
-                  <div className="hm-panel-actions">
-                    <button
-                      className="hm-button hm-button--ghost"
-                      onClick={handleImportTranscriptClick}
-                      disabled={transcriptStatus === "loading"}
+          <section className="hm-panel hm-panel--cuts">
+            <div className="hm-panel-header">
+              <h2 className="hm-panel-title">Cuts</h2>
+            </div>
+            <div className="hm-panel-body">
+              <div className="cuts-marks">
+                <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
+                <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
+                <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
+              </div>
+              {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
+              {cuts.length === 0 ? (
+                <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
+              ) : (
+                <div className="cuts-list">
+                  {cuts.map((cut) => (
+                    <div
+                      key={cut.id}
+                      className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
+                      onClick={() => setSelectedCutId(cut.id)}
                     >
-                      Import transcript
-                    </button>
-                    <button
-                      className="hm-button"
-                      onClick={handleGenerateTranscript}
-                      disabled={transcriptStatus === "loading"}
-                    >
-                      {segments.length > 0 ? "Regenerate" : "Generate stub"}
-                    </button>
-                  </div>
-                </div>
-                <div className="hm-panel-body">
-                  {transcriptStatus === "error" && (
-                    <p className="stacked-gap">Transcript error: {transcriptError}</p>
-                  )}
-                  {transcriptStatus === "loading" && (
-                    <p className="muted stacked-gap">Importing transcript...</p>
-                  )}
-                  {segments.length === 0 ? (
-                    <p className="muted stacked-gap-lg">
-                      No transcript yet. Generate a stub to wire up interaction.
-                    </p>
-                  ) : (
-                    <div className="transcript-list">
-                      {segments.map((segment) => {
-                        const isActive = segment.id === activeSegmentId;
-                        const hasRange = segment.endMs > segment.startMs;
-                        const timeLabel = hasRange
-                          ? `${formatTimestamp(segment.startMs)} – ${formatTimestamp(segment.endMs)}`
-                          : formatTimestamp(segment.startMs);
-                        return (
-                          <button
-                            key={segment.id}
-                            onClick={() => handleSegmentClick(segment)}
-                            className={`transcript-segment${isActive ? " active" : ""}`}
-                          >
-                            <div className="transcript-timestamp">{timeLabel}</div>
-                            <div className="transcript-text">{segment.text}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="hm-panel hm-panel--cuts">
-                <div className="hm-panel-header">
-                  <h2 className="hm-panel-title">Cuts</h2>
-                </div>
-                <div className="hm-panel-body">
-                  <div className="cuts-marks">
-                    <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
-                    <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
-                    <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
-                  </div>
-                  {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
-                  {cuts.length === 0 ? (
-                    <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
-                  ) : (
-                    <div className="cuts-list">
-                      {cuts.map((cut) => (
-                        <div
-                          key={cut.id}
-                          className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
-                          onClick={() => setSelectedCutId(cut.id)}
-                        >
-                          <div className="cut-info">
-                            <div className="cut-times">
-                              {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
-                            </div>
-                            <div className="cut-duration">
-                              Duration: {formatDuration(cut.outMs - cut.inMs)}
-                            </div>
-                          </div>
-                          <div className="cut-actions">
-                            <button
-                              className="hm-button hm-button--ghost"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handlePlayCut(cut);
-                              }}
-                            >
-                              Play
-                            </button>
-                            <button
-                              className="hm-button hm-button--ghost"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleDeleteCut(cut.id);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
+                      <div className="cut-info">
+                        <div className="cut-times">
+                          {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
                         </div>
-                      ))}
+                        <div className="cut-duration">
+                          Duration: {formatDuration(cut.outMs - cut.inMs)}
+                        </div>
+                      </div>
+                      <div className="cut-actions">
+                        <button
+                          className="hm-button hm-button--ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handlePlayCut(cut);
+                          }}
+                        >
+                          Play
+                        </button>
+                        <button
+                          className="hm-button hm-button--ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDeleteCut(cut.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              </section>
-            </>
-          )}
+              )}
+            </div>
+          </section>
         </div>
       </aside>
 
@@ -1323,97 +1262,180 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
 
       <aside className="hm-assetbin" aria-label="Assets">
         <div className="hm-assetbinHeader">
-          <div className="hm-assetbinTitle">Assets</div>
-          <div className="hm-assetbinActions">
-            <button className="hm-button hm-button--compact" onClick={handleImportAssetsClick}>
-              Import
+          <div className="hm-rightTabs">
+            <button
+              className={`hm-tab${activeRightTab === "assets" ? " active" : ""}`}
+              type="button"
+              onClick={() => setActiveRightTab("assets")}
+            >
+              Assets
             </button>
+            <button
+              className={`hm-tab${activeRightTab === "transcript" ? " active" : ""}`}
+              type="button"
+              onClick={() => setActiveRightTab("transcript")}
+            >
+              Transcript
+            </button>
+          </div>
+          <div className="hm-assetbinActions">
+            {activeRightTab === "assets" && (
+              <button className="hm-button hm-button--compact" onClick={handleImportAssetsClick}>
+                Import
+              </button>
+            )}
           </div>
         </div>
         <div className="hm-assetbinBody">
-          {assetActionError && <div className="hm-asset-error">{assetActionError}</div>}
-          <div className="hm-asset-controls">
-            <div className="hm-asset-filters">
-              {(["all", "video", "audio", "image"] as const).map((filter) => (
-                <button
-                  key={filter}
-                  type="button"
-                  className={`hm-asset-filter${assetFilter === filter ? " active" : ""}`}
-                  onClick={() => setAssetFilter(filter)}
-                >
-                  {filter === "all" ? "All" : filter === "image" ? "Images" : formatAssetKind(filter)}
-                </button>
-              ))}
-            </div>
-            <label className="hm-asset-sort">
-              <span>Sort</span>
-              <select
-                value={assetSort}
-                onChange={(event) =>
-                  setAssetSort(event.target.value as "newest" | "name" | "type")
-                }
-              >
-                <option value="newest">Newest</option>
-                <option value="name">Name</option>
-                <option value="type">Type</option>
-              </select>
-            </label>
-          </div>
-          {visibleAssets.length === 0 ? (
-            <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
+          {activeRightTab === "assets" ? (
+            <>
+              {assetActionError && <div className="hm-asset-error">{assetActionError}</div>}
+              <div className="hm-asset-controls">
+                <div className="hm-asset-filters">
+                  {(["all", "video", "audio", "image"] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      className={`hm-asset-filter${assetFilter === filter ? " active" : ""}`}
+                      onClick={() => setAssetFilter(filter)}
+                    >
+                      {filter === "all"
+                        ? "All"
+                        : filter === "image"
+                          ? "Images"
+                          : formatAssetKind(filter)}
+                    </button>
+                  ))}
+                </div>
+                <label className="hm-asset-sort">
+                  <span>Sort</span>
+                  <select
+                    value={assetSort}
+                    onChange={(event) =>
+                      setAssetSort(event.target.value as "newest" | "name" | "type")
+                    }
+                  >
+                    <option value="newest">Newest</option>
+                    <option value="name">Name</option>
+                    <option value="type">Type</option>
+                  </select>
+                </label>
+              </div>
+              {visibleAssets.length === 0 ? (
+                <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
+              ) : (
+                <div className="hm-asset-list">
+                  {visibleAssets.map((asset) => {
+                    const previewUrl = assetPreviewMapRef.current.get(asset.id);
+                    const displayName = asset.displayName ?? asset.name;
+                    return (
+                      <div key={asset.id} className="hm-asset-card">
+                        <div className="hm-asset-thumb">
+                          {previewUrl && asset.kind === "image" ? (
+                            <img src={previewUrl} alt={asset.name} />
+                          ) : (
+                            <div className="hm-asset-thumb-fallback">
+                              {asset.kind === "video"
+                                ? "VIDEO"
+                                : asset.kind === "audio"
+                                  ? "AUDIO"
+                                  : "IMAGE"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="hm-asset-info">
+                          <div className="hm-asset-name" title={displayName}>
+                            {displayName}
+                          </div>
+                          {displayName !== asset.name && (
+                            <div className="hm-asset-filename" title={asset.name}>
+                              {asset.name}
+                            </div>
+                          )}
+                          <div className="hm-asset-meta">
+                            {formatAssetKind(asset.kind)} · {formatBytes(asset.size)}
+                          </div>
+                          <div className="hm-asset-actions">
+                            <button
+                              className="hm-asset-action"
+                              type="button"
+                              onClick={() => void handleRenameAsset(asset)}
+                            >
+                              Rename
+                            </button>
+                            <button
+                              className="hm-asset-action hm-asset-action--danger"
+                              type="button"
+                              onClick={() => void handleRemoveAsset(asset.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           ) : (
-            <div className="hm-asset-list">
-              {visibleAssets.map((asset) => {
-                const previewUrl = assetPreviewMapRef.current.get(asset.id);
-                const displayName = asset.displayName ?? asset.name;
-                return (
-                  <div key={asset.id} className="hm-asset-card">
-                    <div className="hm-asset-thumb">
-                      {previewUrl && asset.kind === "image" ? (
-                        <img src={previewUrl} alt={asset.name} />
-                      ) : (
-                        <div className="hm-asset-thumb-fallback">
-                          {asset.kind === "video"
-                            ? "VIDEO"
-                            : asset.kind === "audio"
-                              ? "AUDIO"
-                              : "IMAGE"}
-                        </div>
-                      )}
-                    </div>
-                    <div className="hm-asset-info">
-                      <div className="hm-asset-name" title={displayName}>
-                        {displayName}
-                      </div>
-                      {displayName !== asset.name && (
-                        <div className="hm-asset-filename" title={asset.name}>
-                          {asset.name}
-                        </div>
-                      )}
-                      <div className="hm-asset-meta">
-                        {formatAssetKind(asset.kind)} · {formatBytes(asset.size)}
-                      </div>
-                      <div className="hm-asset-actions">
+            <section className="hm-right-panel">
+              <div className="hm-panel-header">
+                <div className="hm-panel-titleRow">
+                  <h2 className="hm-panel-title">Transcript</h2>
+                  <span className="hm-panel-count">{segments.length} segments</span>
+                </div>
+                <div className="hm-panel-actions">
+                  <button
+                    className="hm-button hm-button--ghost"
+                    onClick={handleImportTranscriptClick}
+                    disabled={transcriptStatus === "loading"}
+                  >
+                    Import transcript
+                  </button>
+                  <button
+                    className="hm-button"
+                    onClick={handleGenerateTranscript}
+                    disabled={transcriptStatus === "loading"}
+                  >
+                    {segments.length > 0 ? "Regenerate" : "Generate stub"}
+                  </button>
+                </div>
+              </div>
+              <div className="hm-panel-body">
+                {transcriptStatus === "error" && (
+                  <p className="stacked-gap">Transcript error: {transcriptError}</p>
+                )}
+                {transcriptStatus === "loading" && (
+                  <p className="muted stacked-gap">Importing transcript...</p>
+                )}
+                {segments.length === 0 ? (
+                  <p className="muted stacked-gap-lg">
+                    No transcript yet. Generate a stub to wire up interaction.
+                  </p>
+                ) : (
+                  <div className="transcript-list">
+                    {segments.map((segment) => {
+                      const isActive = segment.id === activeSegmentId;
+                      const hasRange = segment.endMs > segment.startMs;
+                      const timeLabel = hasRange
+                        ? `${formatTimestamp(segment.startMs)} – ${formatTimestamp(segment.endMs)}`
+                        : formatTimestamp(segment.startMs);
+                      return (
                         <button
-                          className="hm-asset-action"
-                          type="button"
-                          onClick={() => void handleRenameAsset(asset)}
+                          key={segment.id}
+                          onClick={() => handleSegmentClick(segment)}
+                          className={`transcript-segment${isActive ? " active" : ""}`}
                         >
-                          Rename
+                          <div className="transcript-timestamp">{timeLabel}</div>
+                          <div className="transcript-text">{segment.text}</div>
                         </button>
-                        <button
-                          className="hm-asset-action hm-asset-action--danger"
-                          type="button"
-                          onClick={() => void handleRemoveAsset(asset.id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            </section>
           )}
         </div>
       </aside>
