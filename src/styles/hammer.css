@@ -72,6 +72,11 @@ textarea:focus {
   height: 100vh;
   display: grid;
   grid-template-rows: 64px 1fr 150px;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-areas:
+    "topbar topbar topbar"
+    "leftrail stage assetbin"
+    "timeline timeline timeline";
   background: var(--forge-bg);
   color: var(--forge-text);
 }
@@ -98,6 +103,7 @@ textarea:focus {
 }
 
 .hm-topbar {
+  grid-area: topbar;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -218,12 +224,11 @@ textarea:focus {
 }
 
 .hm-content {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  min-height: 0;
+  display: contents;
 }
 
 .hm-leftrail {
+  grid-area: leftrail;
   background: var(--forge-panel);
   border-right: 1px solid var(--forge-border);
   display: flex;
@@ -395,6 +400,7 @@ textarea:focus {
 }
 
 .hm-stage {
+  grid-area: stage;
   background: var(--forge-bg-2);
   display: flex;
   align-items: center;
@@ -432,7 +438,55 @@ textarea:focus {
   box-shadow: var(--forge-shadow-soft);
 }
 
+.hm-assetbin {
+  grid-area: assetbin;
+  overflow: hidden;
+  border-left: 1px solid var(--forge-border);
+  background: var(--forge-panel);
+  color: var(--forge-text);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+}
+
+.hm-assetbinHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--forge-border);
+  background: var(--forge-panel-2);
+}
+
+.hm-assetbinTitle {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.hm-assetbinBody {
+  overflow: auto;
+  padding: 12px;
+}
+
+.hm-assetbinActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hm-empty {
+  border: 1px dashed var(--forge-border);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--forge-muted);
+  background: var(--forge-panel-2);
+  font-size: 12px;
+  text-align: center;
+}
+
 .hm-timeline {
+  grid-area: timeline;
   background: var(--forge-panel);
   border-top: 1px solid var(--forge-border);
   display: flex;
@@ -943,5 +997,19 @@ textarea:focus {
 
   .hub-main {
     padding: 24px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .hm-editor {
+    grid-template-columns: 280px 1fr;
+    grid-template-areas:
+      "topbar topbar"
+      "leftrail stage"
+      "timeline timeline";
+  }
+
+  .hm-assetbin {
+    display: none;
   }
 }

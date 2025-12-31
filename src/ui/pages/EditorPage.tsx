@@ -658,206 +658,217 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </div>
           {exportStatusLabel && <div className="hm-export-status">{exportStatusLabel}</div>}
         </div>
+        <input
+          id="relink-source-input"
+          ref={relinkInputRef}
+          type="file"
+          accept="video/*"
+          onChange={handleRelinkChange}
+          hidden
+          aria-label="Re-link source media file"
+          title="Re-link source media file"
+        />
+        <input
+          ref={importTranscriptRef}
+          type="file"
+          accept="application/json,.json"
+          onChange={handleImportTranscriptChange}
+          hidden
+          aria-label="Import transcript JSON"
+          title="Import transcript JSON"
+        />
       </div>
 
-      <input
-        id="relink-source-input"
-        ref={relinkInputRef}
-        type="file"
-        accept="video/*"
-        onChange={handleRelinkChange}
-        hidden
-        aria-label="Re-link source media file"
-        title="Re-link source media file"
-      />
-      <input
-        ref={importTranscriptRef}
-        type="file"
-        accept="application/json,.json"
-        onChange={handleImportTranscriptChange}
-        hidden
-        aria-label="Import transcript JSON"
-        title="Import transcript JSON"
-      />
-
-      <div className="hm-content">
-        <aside className="hm-leftrail">
-          <div className="hm-leftrail-tabs">
-            <button className="hm-tab active" type="button">
-              Transcript
-            </button>
-            <button className="hm-tab" type="button" disabled>
-              Retakes
-            </button>
-            <button className="hm-tab" type="button" disabled>
-              Shorts
-            </button>
-            <button className="hm-tab" type="button" disabled>
-              Captions
-            </button>
-            <button className="hm-tab" type="button" disabled>
-              Assets
-            </button>
-            <button className="hm-tab" type="button" disabled>
-              Templates
-            </button>
-          </div>
-          <div className="hm-leftrail-panels">
-            <section className="hm-panel hm-panel--transcript">
-              <div className="hm-panel-header">
-                <h2 className="hm-panel-title">Transcript</h2>
-                <div className="hm-panel-actions">
-                  <button
-                    className="hm-button hm-button--ghost"
-                    onClick={handleImportTranscriptClick}
-                    disabled={transcriptStatus === "loading"}
-                  >
-                    Import JSON
-                  </button>
-                  <button
-                    className="hm-button"
-                    onClick={handleGenerateTranscript}
-                    disabled={transcriptStatus === "loading"}
-                  >
-                    {segments.length > 0 ? "Regenerate" : "Generate stub"}
-                  </button>
-                </div>
-              </div>
-              <div className="hm-panel-body">
-                {transcriptStatus === "error" && (
-                  <p className="stacked-gap">Transcript error: {transcriptError}</p>
-                )}
-                {segments.length === 0 ? (
-                  <p className="muted stacked-gap-lg">
-                    No transcript yet. Generate a stub to wire up interaction.
-                  </p>
-                ) : (
-                  <div className="transcript-list">
-                    {segments.map((segment) => {
-                      const isActive = segment.id === activeSegmentId;
-                      return (
-                        <button
-                          key={segment.id}
-                          onClick={() => handleSegmentClick(segment)}
-                          className={`transcript-segment${isActive ? " active" : ""}`}
-                        >
-                          <div className="transcript-timestamp">
-                            {formatTimestamp(segment.startMs)}
-                          </div>
-                          <div className="transcript-text">{segment.text}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="hm-panel hm-panel--cuts">
-              <div className="hm-panel-header">
-                <h2 className="hm-panel-title">Cuts</h2>
-              </div>
-              <div className="hm-panel-body">
-                <div className="cuts-marks">
-                  <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
-                  <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
-                  <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
-                </div>
-                {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
-                {cuts.length === 0 ? (
-                  <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
-                ) : (
-                  <div className="cuts-list">
-                    {cuts.map((cut) => (
-                      <div
-                        key={cut.id}
-                        className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
-                        onClick={() => setSelectedCutId(cut.id)}
-                      >
-                        <div className="cut-info">
-                          <div className="cut-times">
-                            {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
-                          </div>
-                          <div className="cut-duration">
-                            Duration: {formatDuration(cut.outMs - cut.inMs)}
-                          </div>
-                        </div>
-                        <div className="cut-actions">
-                          <button
-                            className="hm-button hm-button--ghost"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handlePlayCut(cut);
-                            }}
-                          >
-                            Play
-                          </button>
-                          <button
-                            className="hm-button hm-button--ghost"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleDeleteCut(cut.id);
-                            }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-        </aside>
-
-        <main className="hm-stage">
-          <div className="hm-stage-inner">
-            {assetStatus === "loading" && <div className="hm-stage-card">Loading video...</div>}
-            {assetStatus === "error" && (
-              <div className="hm-stage-card">
-                <p>{assetError ?? "Source media not found on this device."}</p>
-                <p className="muted stacked-gap">Stored source: {project.source.filename}</p>
-                {lastRelinkFilename && (
-                  <p className="muted stacked-gap">Selected file: {lastRelinkFilename}</p>
-                )}
+      <aside className="hm-leftrail">
+        <div className="hm-leftrail-tabs">
+          <button className="hm-tab active" type="button">
+            Transcript
+          </button>
+          <button className="hm-tab" type="button" disabled>
+            Retakes
+          </button>
+          <button className="hm-tab" type="button" disabled>
+            Shorts
+          </button>
+          <button className="hm-tab" type="button" disabled>
+            Captions
+          </button>
+          <button className="hm-tab" type="button" disabled>
+            Assets
+          </button>
+          <button className="hm-tab" type="button" disabled>
+            Templates
+          </button>
+        </div>
+        <div className="hm-leftrail-panels">
+          <section className="hm-panel hm-panel--transcript">
+            <div className="hm-panel-header">
+              <h2 className="hm-panel-title">Transcript</h2>
+              <div className="hm-panel-actions">
+                <button
+                  className="hm-button hm-button--ghost"
+                  onClick={handleImportTranscriptClick}
+                  disabled={transcriptStatus === "loading"}
+                >
+                  Import JSON
+                </button>
                 <button
                   className="hm-button"
-                  onClick={handleRelinkClick}
+                  onClick={handleGenerateTranscript}
+                  disabled={transcriptStatus === "loading"}
+                >
+                  {segments.length > 0 ? "Regenerate" : "Generate stub"}
+                </button>
+              </div>
+            </div>
+            <div className="hm-panel-body">
+              {transcriptStatus === "error" && (
+                <p className="stacked-gap">Transcript error: {transcriptError}</p>
+              )}
+              {segments.length === 0 ? (
+                <p className="muted stacked-gap-lg">
+                  No transcript yet. Generate a stub to wire up interaction.
+                </p>
+              ) : (
+                <div className="transcript-list">
+                  {segments.map((segment) => {
+                    const isActive = segment.id === activeSegmentId;
+                    return (
+                      <button
+                        key={segment.id}
+                        onClick={() => handleSegmentClick(segment)}
+                        className={`transcript-segment${isActive ? " active" : ""}`}
+                      >
+                        <div className="transcript-timestamp">
+                          {formatTimestamp(segment.startMs)}
+                        </div>
+                        <div className="transcript-text">{segment.text}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="hm-panel hm-panel--cuts">
+            <div className="hm-panel-header">
+              <h2 className="hm-panel-title">Cuts</h2>
+            </div>
+            <div className="hm-panel-body">
+              <div className="cuts-marks">
+                <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
+                <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
+                <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
+              </div>
+              {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
+              {cuts.length === 0 ? (
+                <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
+              ) : (
+                <div className="cuts-list">
+                  {cuts.map((cut) => (
+                    <div
+                      key={cut.id}
+                      className={`cut-row${cut.id === selectedCutId ? " selected" : ""}`}
+                      onClick={() => setSelectedCutId(cut.id)}
+                    >
+                      <div className="cut-info">
+                        <div className="cut-times">
+                          {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
+                        </div>
+                        <div className="cut-duration">
+                          Duration: {formatDuration(cut.outMs - cut.inMs)}
+                        </div>
+                      </div>
+                      <div className="cut-actions">
+                        <button
+                          className="hm-button hm-button--ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handlePlayCut(cut);
+                          }}
+                        >
+                          Play
+                        </button>
+                        <button
+                          className="hm-button hm-button--ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDeleteCut(cut.id);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <main className="hm-stage">
+        <div className="hm-stage-inner">
+          {assetStatus === "loading" && <div className="hm-stage-card">Loading video...</div>}
+          {assetStatus === "error" && (
+            <div className="hm-stage-card">
+              <p>{assetError ?? "Source media not found on this device."}</p>
+              <p className="muted stacked-gap">Stored source: {project.source.filename}</p>
+              {lastRelinkFilename && (
+                <p className="muted stacked-gap">Selected file: {lastRelinkFilename}</p>
+              )}
+              <button
+                className="hm-button"
+                onClick={handleRelinkClick}
+                disabled={relinkStatus === "loading"}
+              >
+                Re-link source file
+              </button>
+              {relinkStatus === "error" && (
+                <p className="stacked-gap">Re-link failed: {relinkError}</p>
+              )}
+              {relinkStatus === "loading" && <p className="stacked-gap">Re-linking...</p>}
+              {canRetry && (
+                <button
+                  className="hm-button hm-button--ghost"
+                  onClick={() => setRetryCount((count) => count + 1)}
                   disabled={relinkStatus === "loading"}
                 >
-                  Re-link source file
+                  Retry load
                 </button>
-                {relinkStatus === "error" && (
-                  <p className="stacked-gap">Re-link failed: {relinkError}</p>
-                )}
-                {relinkStatus === "loading" && <p className="stacked-gap">Re-linking...</p>}
-                {canRetry && (
-                  <button
-                    className="hm-button hm-button--ghost"
-                    onClick={() => setRetryCount((count) => count + 1)}
-                    disabled={relinkStatus === "loading"}
-                  >
-                    Retry load
-                  </button>
-                )}
-              </div>
-            )}
-            {videoUrl && (
-              <video
-                ref={videoRef}
-                controls
-                src={videoUrl}
-                onTimeUpdate={handleTimeUpdate}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
-                className="hm-stage-video"
-              />
-            )}
+              )}
+            </div>
+          )}
+          {videoUrl && (
+            <video
+              ref={videoRef}
+              controls
+              src={videoUrl}
+              onTimeUpdate={handleTimeUpdate}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+              className="hm-stage-video"
+            />
+          )}
+        </div>
+      </main>
+
+      <aside className="hm-assetbin" aria-label="Assets">
+        <div className="hm-assetbinHeader">
+          <div className="hm-assetbinTitle">Assets</div>
+          <div className="hm-assetbinActions">
+            <button className="hm-button hm-button--compact" disabled>
+              Import
+            </button>
           </div>
-        </main>
-      </div>
+        </div>
+        <div className="hm-assetbinBody">
+          <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
+        </div>
+      </aside>
 
       <div className="hm-timeline">
         <div className="hm-timelineToolbar">
