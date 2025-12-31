@@ -204,6 +204,8 @@ assetId is namespaced by provider id (e.g., local:abc123)
 
 ProjectDoc is the portable truth
 
+exports are assets too; provider stores export blobs and returns assetId
+
 Storage invariants:
 
 Storage calls must never hang; every API resolves/rejects deterministically.
@@ -342,14 +344,39 @@ interface StorageProvider {
 
 Editor produces an explicit plan:
 
-cut ranges
+source assetId
 
-effects params
+normalized cut ranges (removed time spans)
 
-shorts layout + crops
+output settings (format, quality preset)
 
-output config
+RenderPlan is explicit so new plan layers (effects/shorts) can be added later without refactoring.
 
+Cut normalization rules:
+
+sort by inMs
+
+clamp to [0, durationMs]
+
+drop invalid or zero-length ranges
+
+merge overlaps and adjacencies
+
+Cuts are removed; everything else is kept.
+
+type RenderPlan = {
+  sourceAssetId: AssetId;
+  cuts: Array<{ inMs: number; outMs: number }>;
+  output: { format: "mp4"; quality: "draft" | "final" };
+};
+
+type ExportResult = {
+  assetId: AssetId;
+  filename: string;
+  durationMs: number;
+};
+
+Renderer consumes plan + source media and returns ExportResult.
 Renderer is free to implement internally (WASM, WebCodecs, etc).
 
 6. UI (v0.01 Panels)
@@ -387,6 +414,14 @@ Choose layout template + adjust crop boxes
 Toggle Studio Sound + blur parameters
 
 Export full + export selected shorts
+
+Export UI requirements (v0.01 baseline):
+
+Export Full button in top bar
+
+progress state (e.g., Encoding… 37%)
+
+human-readable failure messages (format unsupported, memory limits, etc.)
 
 7. Repo Layout (TypeScript, no monolith)
 hammer/
@@ -493,6 +528,18 @@ M4 — Export Full (Cuts only)
 
 RenderEngine exports full MP4 with cuts (baseline “we can ship” milestone)
 
+Phase 4 done-done checklist:
+
+Add Cut + Delete Cut persist
+
+Refresh keeps cuts
+
+Export produces a downloadable MP4 (even if slow)
+
+Exported MP4 duration matches kept time
+
+Zero-cut export still works (no-op encode or straight remux)
+
 M5 — Studio Sound
 
 Audio preset params + export applies audio chain
@@ -514,6 +561,10 @@ Export shorts as 9:16
 npm run typecheck must pass
 
 npm run lint must pass
+
+Phase 4 dev gate:
+
+npm run typecheck && npm run lint && npm run test && npm run build
 
 No “monolithic” file: soft cap 500 lines per module (split if bigger)
 
