@@ -94,4 +94,13 @@ export class LocalStorageProvider implements StorageProvider {
       title: project.source.filename,
     }));
   }
+
+  async deleteProject(projectId: string): Promise<void> {
+    const index = loadProjectIndex();
+    if (!index[projectId]) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    delete index[projectId];
+    saveProjectIndex(index);
+  }
 }

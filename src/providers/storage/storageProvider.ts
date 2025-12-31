@@ -7,4 +7,5 @@ export interface StorageProvider {
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<Array<{ projectId: string; updatedAt: string; title?: string }>>;
+  deleteProject(projectId: string): Promise<void>;
 }

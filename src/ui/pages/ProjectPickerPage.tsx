@@ -63,6 +63,20 @@ export function ProjectPickerPage({ storage, onOpenProject }: Props) {
     }
   };
 
+  const handleDelete = async (projectId: string, title?: string) => {
+    const confirmed = window.confirm(`Delete project "${title ?? projectId}"?`);
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await storage.deleteProject(projectId);
+      await refresh();
+    } catch (e) {
+      setStatus("error");
+      setError(e instanceof Error ? e.message : "Unknown error");
+    }
+  };
+
   return (
     <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <h1>Hammer v0.01</h1>
@@ -95,7 +109,10 @@ export function ProjectPickerPage({ storage, onOpenProject }: Props) {
               </div>
 
               <div style={{ marginTop: 10 }}>
-                <button onClick={() => void handleOpen(p.projectId)}>Open</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => void handleOpen(p.projectId)}>Open</button>
+                  <button onClick={() => void handleDelete(p.projectId, p.title)}>Delete</button>
+                </div>
               </div>
             </div>
           ))}
