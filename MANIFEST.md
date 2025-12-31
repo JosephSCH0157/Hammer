@@ -190,6 +190,14 @@ store only assetId + metadata
 
 ProjectDoc is the portable truth
 
+Storage invariants:
+
+Storage calls must never hang; every API resolves/rejects deterministically.
+
+IndexedDB open failures must not poison future attempts (cache cleared on failure).
+
+onblocked is treated as a failure with a recoverable retry path.
+
 5. Architecture
 5.1 Data Model (Canonical)
 

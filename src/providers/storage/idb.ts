@@ -29,12 +29,17 @@ const openDb = (): Promise<IDBDatabase> => {
       }
     };
     request.onerror = () => {
+      const errorName = request.error?.name ?? "UnknownError";
       dbPromise = null;
-      reject(request.error ?? new Error("IndexedDB open failed"));
+      reject(new Error(`IndexedDB open failed (${errorName})`));
     };
     request.onblocked = () => {
       dbPromise = null;
-      reject(new Error("IndexedDB open blocked"));
+      reject(
+        new Error(
+          "IndexedDB open blocked (another tab may be using an old connection). Close other tabs and retry."
+        )
+      );
     };
     request.onsuccess = () => {
       resolve(request.result);
