@@ -1,9 +1,12 @@
 import type { ProjectDoc } from "../../core/types/project";
-import type { StorageProvider } from "./storageProvider";
+import type { ProjectListItem, StorageProvider } from "./storageProvider";
 
-const PROJECTS_KEY = "hammer.projects";
+const PROJECT_INDEX_KEY = "hammer.projects.index";
+const PROJECT_DOCS_KEY = "hammer.projects.docs";
+const LEGACY_PROJECTS_KEY = "hammer.projects";
 const assetStore = new Map<string, Blob>();
-let memoryProjects: Record<string, ProjectDoc> = {};
+let memoryDocs: Record<string, ProjectDoc> = {};
+let memoryIndex: Record<string, ProjectListItem> = {};
 
 const hasLocalStorage = (): boolean => {
   try {
@@ -13,11 +16,29 @@ const hasLocalStorage = (): boolean => {
   }
 };
 
-const loadProjectIndex = (): Record<string, ProjectDoc> => {
+const buildSummary = (doc: ProjectDoc): ProjectListItem => ({
+  projectId: doc.projectId,
+  updatedAt: doc.updatedAt,
+  filename: doc.source.filename,
+  durationMs: doc.source.durationMs,
+  width: doc.source.width,
+  height: doc.source.height,
+  hasTranscript: Boolean(doc.transcript),
+});
+
+const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, ProjectListItem> => {
+  const index: Record<string, ProjectListItem> = {};
+  Object.values(docs).forEach((doc) => {
+    index[doc.projectId] = buildSummary(doc);
+  });
+  return index;
+};
+
+const loadProjectDocs = (): Record<string, ProjectDoc> => {
   if (!hasLocalStorage()) {
-    return { ...memoryProjects };
+    return { ...memoryDocs };
   }
-  const raw = localStorage.getItem(PROJECTS_KEY);
+  const raw = localStorage.getItem(PROJECT_DOCS_KEY) ?? localStorage.getItem(LEGACY_PROJECTS_KEY);
   if (!raw) {
     return {};
   }
@@ -28,12 +49,38 @@ const loadProjectIndex = (): Record<string, ProjectDoc> => {
   }
 };
 
-const saveProjectIndex = (index: Record<string, ProjectDoc>): void => {
+const saveProjectDocs = (docs: Record<string, ProjectDoc>): void => {
   if (!hasLocalStorage()) {
-    memoryProjects = { ...index };
+    memoryDocs = { ...docs };
     return;
   }
-  localStorage.setItem(PROJECTS_KEY, JSON.stringify(index));
+  localStorage.setItem(PROJECT_DOCS_KEY, JSON.stringify(docs));
+};
+
+const loadProjectIndex = (): Record<string, ProjectListItem> => {
+  if (!hasLocalStorage()) {
+    return { ...memoryIndex };
+  }
+  const raw = localStorage.getItem(PROJECT_INDEX_KEY);
+  if (raw) {
+    try {
+      return JSON.parse(raw) as Record<string, ProjectListItem>;
+    } catch {
+      // Fall through to rebuild from docs.
+    }
+  }
+  const docs = loadProjectDocs();
+  const index = buildIndexFromDocs(docs);
+  saveProjectIndex(index);
+  return index;
+};
+
+const saveProjectIndex = (index: Record<string, ProjectListItem>): void => {
+  if (!hasLocalStorage()) {
+    memoryIndex = { ...index };
+    return;
+  }
+  localStorage.setItem(PROJECT_INDEX_KEY, JSON.stringify(index));
 };
 
 const createId = (): string => {
@@ -68,39 +115,47 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async saveProject(doc: ProjectDoc): Promise<void> {
+    const docs = loadProjectDocs();
     const index = loadProjectIndex();
     const storedDoc: ProjectDoc = {
       ...doc,
       updatedAt: new Date().toISOString(),
     };
-    index[doc.projectId] = storedDoc;
+    docs[doc.projectId] = storedDoc;
+    index[doc.projectId] = buildSummary(storedDoc);
+    saveProjectDocs(docs);
     saveProjectIndex(index);
   }
 
   async loadProject(projectId: string): Promise<ProjectDoc> {
-    const index = loadProjectIndex();
-    const project = index[projectId];
+    const docs = loadProjectDocs();
+    const project = docs[projectId];
     if (!project) {
       throw new Error(`Project not found: ${projectId}`);
     }
     return project;
   }
 
-  async listProjects(): Promise<Array<{ projectId: string; updatedAt: string; title?: string }>> {
+  async listProjects(): Promise<ProjectListItem[]> {
     const index = loadProjectIndex();
-    return Object.values(index).map((project) => ({
-      projectId: project.projectId,
-      updatedAt: project.updatedAt,
-      title: project.source.filename,
-    }));
+    return Object.values(index);
   }
 
   async deleteProject(projectId: string): Promise<void> {
+    const docs = loadProjectDocs();
     const index = loadProjectIndex();
-    if (!index[projectId]) {
+    const hasDoc = Boolean(docs[projectId]);
+    const hasIndex = Boolean(index[projectId]);
+    if (!hasDoc && !hasIndex) {
       throw new Error(`Project not found: ${projectId}`);
     }
-    delete index[projectId];
+    if (hasDoc) {
+      delete docs[projectId];
+    }
+    if (hasIndex) {
+      delete index[projectId];
+    }
+    saveProjectDocs(docs);
     saveProjectIndex(index);
   }
 }

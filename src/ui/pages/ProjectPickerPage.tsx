@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { ProjectDoc } from "../../core/types/project";
-import type { StorageProvider } from "../../providers/storage/storageProvider";
+import type { ProjectListItem, StorageProvider } from "../../providers/storage/storageProvider";
 import { importMedia } from "../../features/ingest/importMedia";
-
-type ProjectListItem = { projectId: string; updatedAt: string; title?: string };
 
 type Props = {
   storage: StorageProvider;
   onOpenProject: (project: ProjectDoc) => void;
+};
+
+const formatDuration = (durationMs: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
 
 export function ProjectPickerPage({ storage, onOpenProject }: Props) {
@@ -103,15 +108,19 @@ export function ProjectPickerPage({ storage, onOpenProject }: Props) {
                 padding: 12
               }}
             >
-              <div style={{ fontWeight: 600 }}>{p.title ?? p.projectId}</div>
+              <div style={{ fontWeight: 600 }}>{p.filename}</div>
               <div style={{ opacity: 0.8, fontSize: 12 }}>
                 Updated: {new Date(p.updatedAt).toLocaleString()}
+              </div>
+              <div style={{ opacity: 0.8, fontSize: 12 }}>
+                Duration: {formatDuration(p.durationMs)} | {p.width}x{p.height} |{" "}
+                {p.hasTranscript ? "Transcript" : "No transcript"}
               </div>
 
               <div style={{ marginTop: 10 }}>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => void handleOpen(p.projectId)}>Open</button>
-                  <button onClick={() => void handleDelete(p.projectId, p.title)}>Delete</button>
+                  <button onClick={() => void handleDelete(p.projectId, p.filename)}>Delete</button>
                 </div>
               </div>
             </div>
