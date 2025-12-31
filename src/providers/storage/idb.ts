@@ -29,7 +29,12 @@ const openDb = (): Promise<IDBDatabase> => {
       }
     };
     request.onerror = () => {
+      dbPromise = null;
       reject(request.error ?? new Error("IndexedDB open failed"));
+    };
+    request.onblocked = () => {
+      dbPromise = null;
+      reject(new Error("IndexedDB open blocked"));
     };
     request.onsuccess = () => {
       resolve(request.result);
