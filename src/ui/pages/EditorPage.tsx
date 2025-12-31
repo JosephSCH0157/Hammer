@@ -12,6 +12,8 @@ export function EditorPage({ project, storage, onBack }: Props) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "error">("idle");
   const [assetError, setAssetError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const showRetry = import.meta.env.DEV;
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +52,7 @@ export function EditorPage({ project, storage, onBack }: Props) {
         URL.revokeObjectURL(localUrl);
       }
     };
-  }, [project.source.assetId, storage]);
+  }, [project.source.assetId, storage, retryCount]);
   return (
     <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -68,6 +70,15 @@ export function EditorPage({ project, storage, onBack }: Props) {
           <div>
             <p>{assetError ?? "Source media not found on this device."}</p>
             <button disabled>Re-link source file (v0.02)</button>
+            {showRetry && (
+              <button
+                style={{ marginLeft: 8 }}
+                onClick={() => setRetryCount((count) => count + 1)}
+                disabled={assetStatus === "loading"}
+              >
+                Retry load
+              </button>
+            )}
           </div>
         )}
         {videoUrl && (

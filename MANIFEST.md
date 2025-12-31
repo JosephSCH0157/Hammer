@@ -198,6 +198,8 @@ IndexedDB open failures must not poison future attempts (cache cleared on failur
 
 onblocked is treated as a failure with a recoverable retry path.
 
+Manual validation: open Hammer in two tabs; ensure IDB blocked shows actionable error (close other tab and retry) and never hangs.
+
 5. Architecture
 5.1 Data Model (Canonical)
 
