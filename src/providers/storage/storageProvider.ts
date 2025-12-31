@@ -2,6 +2,7 @@ import type { AssetId, Cut, ProjectDoc, ProviderId, Transcript } from "../../cor
 
 export type ProjectListItem = {
   projectId: string;
+  title?: string;
   updatedAt: string;
   filename: string;
   durationMs: number;
@@ -9,6 +10,7 @@ export type ProjectListItem = {
   height: number;
   hasTranscript: boolean;
   cutsCount: number;
+  thumbnailAssetId?: AssetId;
 };
 
 export type AssetMeta = {

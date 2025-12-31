@@ -13,7 +13,8 @@ const createId = (): string => {
 
 export const importMedia = async (
   file: File,
-  storage: StorageProvider
+  storage: StorageProvider,
+  title?: string
 ): Promise<ProjectDoc> => {
   const metadata = await getMediaMetadata(file);
   if (metadata.durationMs > MAX_DURATION_MS) {
@@ -52,6 +53,9 @@ export const importMedia = async (
       referencedAssetIds: [],
     },
   };
+  if (title?.trim()) {
+    doc.title = title.trim();
+  }
   await storage.saveProject(doc);
   return storage.loadProject(doc.projectId);
 };

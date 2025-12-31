@@ -10,6 +10,8 @@ export type AssetRef = {
 export type ProjectDoc = {
   schemaVersion: "0.1";
   projectId: string;
+  title?: string;
+  thumbnailAssetId?: AssetId;
   createdAt: string;
   updatedAt: string;
   source: {

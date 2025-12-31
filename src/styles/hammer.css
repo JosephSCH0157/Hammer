@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap");
+
 .hammer-page {
   padding: 16px;
   font-family: system-ui, sans-serif;
@@ -249,4 +251,293 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.hub-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  background: linear-gradient(140deg, #f1ece2 0%, #f8f6f1 45%, #eff3f6 100%);
+  color: #1c1916;
+  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+.hub-leftnav {
+  padding: 24px 18px;
+  border-right: 1px solid rgba(30, 24, 18, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.hub-brand {
+  display: grid;
+  gap: 4px;
+}
+
+.hub-brand-mark {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.hub-brand-subtitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  opacity: 0.7;
+}
+
+.hub-nav {
+  display: grid;
+  gap: 10px;
+}
+
+.hub-nav-item {
+  border: 1px solid rgba(30, 24, 18, 0.16);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  color: inherit;
+}
+
+.hub-nav-item.active {
+  background: #1c1916;
+  color: #f8f5ef;
+  border-color: #1c1916;
+}
+
+.hub-nav-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hub-main {
+  padding: 28px 32px 48px;
+}
+
+.hub-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.hub-header h1 {
+  font-size: 28px;
+  margin: 0 0 8px;
+}
+
+.hub-header p {
+  margin: 0;
+  opacity: 0.75;
+}
+
+.hub-header-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hub-header-actions button {
+  border-radius: 999px;
+  padding: 10px 16px;
+  border: 1px solid rgba(30, 24, 18, 0.2);
+  background: #1c1916;
+  color: #f8f5ef;
+}
+
+.hub-header-actions .ghost {
+  background: transparent;
+  color: inherit;
+}
+
+.hub-create {
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(30, 24, 18, 0.08);
+}
+
+.hub-form {
+  display: grid;
+  gap: 12px;
+}
+
+.hub-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.hub-field input[type="text"],
+.hub-field input[type="file"] {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(30, 24, 18, 0.2);
+  background: #fff;
+}
+
+.hub-form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hub-form-actions button {
+  border-radius: 999px;
+  padding: 8px 14px;
+  border: 1px solid rgba(30, 24, 18, 0.2);
+  background: #1c1916;
+  color: #f8f5ef;
+}
+
+.hub-form-actions .ghost {
+  background: transparent;
+  color: inherit;
+}
+
+.hub-error {
+  margin: 0;
+  color: #8b1f1f;
+}
+
+.hub-library {
+  margin-top: 28px;
+}
+
+.hub-library-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.hub-library-header h2 {
+  margin: 0;
+}
+
+.hub-muted {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.hub-grid {
+  margin-top: 16px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+
+.project-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(30, 24, 18, 0.1);
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.project-card:focus {
+  outline: 2px solid rgba(30, 24, 18, 0.4);
+  outline-offset: 2px;
+}
+
+.project-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(30, 24, 18, 0.12);
+}
+
+.project-thumb {
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: rgba(30, 24, 18, 0.04);
+}
+
+.project-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.project-thumb--placeholder img {
+  opacity: 0.45;
+}
+
+.project-card-body {
+  display: grid;
+  gap: 6px;
+}
+
+.project-title {
+  font-weight: 600;
+}
+
+.project-meta {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.project-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.project-card-actions .ghost {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+}
+
+.hub-empty {
+  margin-top: 32px;
+  padding: 32px;
+  border-radius: 20px;
+  display: grid;
+  gap: 16px;
+  align-items: center;
+  justify-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px dashed rgba(30, 24, 18, 0.12);
+  text-align: center;
+}
+
+.hub-empty-image {
+  width: 140px;
+  opacity: 0.5;
+}
+
+@media (max-width: 900px) {
+  .hub-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .hub-leftnav {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-right: none;
+    border-bottom: 1px solid rgba(30, 24, 18, 0.08);
+  }
+
+  .hub-nav {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(110px, auto);
+    justify-content: flex-start;
+  }
+
+  .hub-main {
+    padding: 24px;
+  }
 }

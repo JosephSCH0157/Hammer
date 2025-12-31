@@ -20,16 +20,25 @@ const hasLocalStorage = (): boolean => {
   }
 };
 
-const buildSummary = (doc: ProjectDoc): ProjectListItem => ({
-  projectId: doc.projectId,
-  updatedAt: doc.updatedAt,
-  filename: doc.source.filename,
-  durationMs: doc.source.durationMs,
-  width: doc.source.width,
-  height: doc.source.height,
-  hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
-  cutsCount: doc.edl?.cuts?.length ?? 0,
-});
+const buildSummary = (doc: ProjectDoc): ProjectListItem => {
+  const summary: ProjectListItem = {
+    projectId: doc.projectId,
+    updatedAt: doc.updatedAt,
+    filename: doc.source.filename,
+    durationMs: doc.source.durationMs,
+    width: doc.source.width,
+    height: doc.source.height,
+    hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
+    cutsCount: doc.edl?.cuts?.length ?? 0,
+  };
+  if (doc.title) {
+    summary.title = doc.title;
+  }
+  if (doc.thumbnailAssetId) {
+    summary.thumbnailAssetId = doc.thumbnailAssetId;
+  }
+  return summary;
+};
 
 const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, ProjectListItem> => {
   const index: Record<string, ProjectListItem> = {};
