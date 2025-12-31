@@ -69,7 +69,11 @@ export class LocalStorageProvider implements StorageProvider {
 
   async saveProject(doc: ProjectDoc): Promise<void> {
     const index = loadProjectIndex();
-    index[doc.projectId] = doc;
+    const storedDoc: ProjectDoc = {
+      ...doc,
+      updatedAt: new Date().toISOString(),
+    };
+    index[doc.projectId] = storedDoc;
     saveProjectIndex(index);
   }
 

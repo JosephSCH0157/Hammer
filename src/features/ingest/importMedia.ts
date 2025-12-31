@@ -2,6 +2,8 @@ import type { ProjectDoc } from "../../core/types/project";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { getMediaMetadata } from "./mediaMeta";
 
+const MAX_DURATION_MS = 90 * 60 * 1000;
+
 const createId = (): string => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -14,6 +16,9 @@ export const importMedia = async (
   storage: StorageProvider
 ): Promise<ProjectDoc> => {
   const metadata = await getMediaMetadata(file);
+  if (metadata.durationMs > MAX_DURATION_MS) {
+    throw new Error("Video exceeds 90-minute limit. Please trim before importing.");
+  }
   const asset = await storage.putAsset(file);
   const now = new Date().toISOString();
   const source: ProjectDoc["source"] = {
