@@ -18,6 +18,10 @@
   --forge-text-on-accent: #0b0f16;
   --forge-shadow-strong: 0 12px 28px rgba(6, 10, 16, 0.6);
   --forge-shadow-soft: 0 8px 20px rgba(6, 10, 16, 0.35);
+  --hm-topbar-h: 40px;
+  --hm-timeline-h: 174px;
+  --hm-rail-w: 280px;
+  --hm-bin-w: 320px;
 }
 
 *,
@@ -71,8 +75,8 @@ textarea:focus {
 .hm-editor {
   height: 100vh;
   display: grid;
-  grid-template-rows: 64px 1fr 150px;
-  grid-template-columns: 280px 1fr 320px;
+  grid-template-rows: var(--hm-topbar-h, 40px) 1fr var(--hm-timeline-h, 174px);
+  grid-template-columns: var(--hm-rail-w, 280px) 1fr var(--hm-bin-w, 320px);
   grid-template-areas:
     "topbar topbar topbar"
     "leftrail stage assetbin"
@@ -107,8 +111,8 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 20px;
+  gap: 12px;
+  padding: 0 16px;
   background: var(--forge-panel);
   border-bottom: 1px solid var(--forge-border);
 }
@@ -489,19 +493,25 @@ textarea:focus {
   grid-area: timeline;
   background: var(--forge-panel);
   border-top: 1px solid var(--forge-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  height: 150px;
+  display: grid;
+  grid-template-rows: auto 32px 1fr auto;
+  gap: 6px;
+  height: var(--hm-timeline-h, 174px);
 }
 
 .hm-timelineToolbar {
-  height: 40px;
   display: flex;
   align-items: center;
   padding: 0 20px;
   background: var(--forge-panel-2);
   border-bottom: 1px solid var(--forge-border);
+}
+
+.hm-placementLaneShell {
+  margin: 0 20px;
+  border: 1px dashed var(--forge-border);
+  border-radius: 8px;
+  background: var(--forge-panel-2);
 }
 
 .hm-timelineActions {
@@ -1056,7 +1066,7 @@ textarea:focus {
 
 @media (max-width: 1100px) {
   .hm-editor {
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: var(--hm-rail-w, 280px) 1fr;
     grid-template-areas:
       "topbar topbar"
       "leftrail stage"

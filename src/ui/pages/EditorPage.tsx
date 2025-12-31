@@ -769,7 +769,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     <div className="hm-editor">
       <div className="hm-topbar">
         <div className="hm-topbar-left">
-          <button className="hm-button hm-button--ghost" onClick={onBack}>
+          <button className="hm-button hm-button--ghost hm-button--compact" onClick={onBack}>
             Back
           </button>
           <div className="hm-title-block">
@@ -779,7 +779,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         </div>
         <div className="hm-topbar-center">
           <button
-            className="hm-button hm-button--ghost"
+            className="hm-button hm-button--ghost hm-button--compact"
             onClick={handleTogglePlay}
             disabled={!canTransport}
           >
@@ -813,11 +813,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 disabled={exportBusy}
               />
             </label>
-            <button className="hm-button" onClick={handleExportFull} disabled={exportBusy}>
+            <button className="hm-button hm-button--compact" onClick={handleExportFull} disabled={exportBusy}>
               Export Full
             </button>
             <button
-              className="hm-button hm-button--ghost"
+              className="hm-button hm-button--ghost hm-button--compact"
               onClick={handleExportCut}
               disabled={!canExportCut}
             >
@@ -1074,6 +1074,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             </button>
           </div>
         </div>
+        <div className="hm-placementLaneShell" aria-hidden="true" />
         <div className="hm-timeline-track">
           <div
             className="hm-timelineScroll"
