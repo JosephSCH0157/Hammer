@@ -520,11 +520,13 @@ textarea:focus {
   padding: 4px 10px;
   font-size: 11px;
   cursor: pointer;
+  position: relative;
 }
 
 .hm-asset-filter.active {
   background: var(--forge-panel-3);
-  border-color: var(--forge-border-strong);
+  border-color: var(--forge-accent-2);
+  box-shadow: inset 0 -2px 0 var(--forge-accent);
 }
 
 .hm-asset-sort {

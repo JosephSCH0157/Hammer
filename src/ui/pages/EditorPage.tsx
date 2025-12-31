@@ -237,25 +237,52 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
   const visibleAssets = useMemo(() => {
+    const nameFor = (asset: Asset) => asset.displayName ?? asset.name;
+    const compareName = (a: Asset, b: Asset) => nameFor(a).localeCompare(nameFor(b));
+    const compareCreatedDesc = (a: Asset, b: Asset) => b.createdAt.localeCompare(a.createdAt);
+    const compareKind = (a: Asset, b: Asset) => a.kind.localeCompare(b.kind);
     const filtered =
       assetFilter === "all" ? assets : assets.filter((asset) => asset.kind === assetFilter);
     const sorted = [...filtered];
     if (assetSort === "newest") {
-      sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      sorted.sort((a, b) => {
+        const byDate = compareCreatedDesc(a, b);
+        if (byDate !== 0) {
+          return byDate;
+        }
+        const byName = compareName(a, b);
+        if (byName !== 0) {
+          return byName;
+        }
+        return a.id.localeCompare(b.id);
+      });
     } else if (assetSort === "name") {
       sorted.sort((a, b) => {
-        const nameA = a.displayName ?? a.name;
-        const nameB = b.displayName ?? b.name;
-        return nameA.localeCompare(nameB);
+        const byName = compareName(a, b);
+        if (byName !== 0) {
+          return byName;
+        }
+        const byDate = compareCreatedDesc(a, b);
+        if (byDate !== 0) {
+          return byDate;
+        }
+        return a.id.localeCompare(b.id);
       });
     } else {
       sorted.sort((a, b) => {
-        if (a.kind === b.kind) {
-          const nameA = a.displayName ?? a.name;
-          const nameB = b.displayName ?? b.name;
-          return nameA.localeCompare(nameB);
+        const byKind = compareKind(a, b);
+        if (byKind !== 0) {
+          return byKind;
         }
-        return a.kind.localeCompare(b.kind);
+        const byName = compareName(a, b);
+        if (byName !== 0) {
+          return byName;
+        }
+        const byDate = compareCreatedDesc(a, b);
+        if (byDate !== 0) {
+          return byDate;
+        }
+        return a.id.localeCompare(b.id);
       });
     }
     return sorted;
@@ -878,6 +905,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           : "video";
       const id = createId();
       const previewUrl = URL.createObjectURL(file);
+      const existingUrl = assetPreviewMapRef.current.get(id);
+      if (existingUrl) {
+        URL.revokeObjectURL(existingUrl);
+      }
       assetPreviewMapRef.current.set(id, previewUrl);
       const displayName = stripExtension(file.name).trim();
       return {
@@ -922,15 +953,22 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       return;
     }
     const trimmed = nextName.trim();
+    if (!trimmed) {
+      return;
+    }
+    const capped = trimmed.slice(0, 60);
+    if (capped === currentName) {
+      return;
+    }
     const nextAssets = assets.map((entry) => {
       if (entry.id !== asset.id) {
         return entry;
       }
-      if (!trimmed) {
+      if (capped === entry.name) {
         const { displayName: _unused, ...rest } = entry;
         return rest;
       }
-      return { ...entry, displayName: trimmed };
+      return { ...entry, displayName: capped };
     });
     await updateAssets(nextAssets, "Unable to rename asset.");
   };
