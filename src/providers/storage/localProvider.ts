@@ -1,4 +1,4 @@
-import type { AssetRef, ProjectDoc, ProviderId } from "../../core/types/project";
+import type { AssetRef, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
@@ -27,7 +27,7 @@ const buildSummary = (doc: ProjectDoc): ProjectListItem => ({
   durationMs: doc.source.durationMs,
   width: doc.source.width,
   height: doc.source.height,
-  hasTranscript: Boolean(doc.transcript),
+  hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
 });
 
 const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, ProjectListItem> => {
@@ -334,6 +334,25 @@ export class LocalStorageProvider implements StorageProvider {
     const updatedDoc: ProjectDoc = {
       ...existing,
       source: updatedSource,
+      updatedAt: new Date().toISOString(),
+    };
+    docs[projectId] = updatedDoc;
+    index[projectId] = buildSummary(updatedDoc);
+    saveProjectDocs(docs);
+    saveProjectIndex(index);
+    return updatedDoc;
+  }
+
+  async setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc> {
+    const docs = loadProjectDocs();
+    const index = loadProjectIndex();
+    const existing = docs[projectId];
+    if (!existing) {
+      throw new Error(`Project not found: ${projectId}`);
+    }
+    const updatedDoc: ProjectDoc = {
+      ...existing,
+      transcript,
       updatedAt: new Date().toISOString(),
     };
     docs[projectId] = updatedDoc;

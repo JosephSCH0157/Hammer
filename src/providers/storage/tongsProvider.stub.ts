@@ -1,4 +1,4 @@
-import type { ProjectDoc } from "../../core/types/project";
+import type { ProjectDoc, Transcript } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 
 export class TongsProvider implements StorageProvider {
@@ -13,6 +13,10 @@ export class TongsProvider implements StorageProvider {
   }
 
   async relinkSource(_projectId: string, _file: File): Promise<ProjectDoc> {
+    throw new Error("TongsProvider not implemented");
+  }
+
+  async setTranscript(_projectId: string, _transcript: Transcript): Promise<ProjectDoc> {
     throw new Error("TongsProvider not implemented");
   }
 

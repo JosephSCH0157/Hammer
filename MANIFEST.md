@@ -264,9 +264,9 @@ type AssetRef = {
 };
 
 type Transcript = {
-  engine: string;
+  engine?: string;
   language?: string;
-  segments: Array<{ startMs: number; endMs: number; text: string }>;
+  segments: Array<{ id: string; startMs: number; endMs?: number; text: string }>;
 };
 
 type ShortClip = {
@@ -312,6 +312,7 @@ interface StorageProvider {
   putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
   getAsset(assetId: AssetId): Promise<Blob>;
   relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
+  setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<Array<{ projectId: string; updatedAt: string; title?: string }>>;

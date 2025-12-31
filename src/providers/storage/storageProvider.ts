@@ -1,4 +1,4 @@
-import type { AssetId, ProjectDoc, ProviderId } from "../../core/types/project";
+import type { AssetId, ProjectDoc, ProviderId, Transcript } from "../../core/types/project";
 
 export type ProjectListItem = {
   projectId: string;
@@ -26,6 +26,8 @@ export interface StorageProvider {
   getAsset(assetId: AssetId): Promise<Blob>;
   /** Re-link a project source asset by storing a new file and updating the project. */
   relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
+  /** Set transcript data for a project. */
+  setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
   saveProject(doc: ProjectDoc): Promise<void>;
   loadProject(projectId: string): Promise<ProjectDoc>;
   listProjects(): Promise<ProjectListItem[]>;

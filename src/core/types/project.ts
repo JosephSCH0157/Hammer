@@ -38,9 +38,9 @@ export type ProjectDoc = {
 };
 
 export type Transcript = {
-  engine: string;
+  engine?: string;
   language?: string;
-  segments: Array<{ startMs: number; endMs: number; text: string }>;
+  segments: Array<{ id: string; startMs: number; endMs?: number; text: string }>;
 };
 
 export type ShortClip = {
