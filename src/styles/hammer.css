@@ -477,6 +477,7 @@ textarea:focus {
   border-radius: 999px;
   background: var(--forge-border);
   overflow: visible;
+  cursor: pointer;
 }
 
 .hm-timeline-playhead {
@@ -533,6 +534,18 @@ textarea:focus {
   background: var(--forge-accent-2);
 }
 
+.hm-timeline-ghost {
+  position: absolute;
+  top: -6px;
+  width: 2px;
+  height: 22px;
+  background: var(--forge-muted);
+  opacity: 0.45;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
 .hm-scissor {
   position: absolute;
   top: -32px;
@@ -555,6 +568,11 @@ textarea:focus {
 
 .hm-scissor:hover {
   border-color: var(--forge-border-strong);
+}
+
+.hm-scissor:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .hm-timeline-footer {

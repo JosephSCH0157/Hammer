@@ -455,6 +455,19 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setTimelineHoverMs(null);
   };
 
+  const handleTimelineClick = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    if (safeDurationMs <= 0) {
+      return;
+    }
+    const rect = target.getBoundingClientRect();
+    if (rect.width <= 0) {
+      return;
+    }
+    const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+    handleSeekTo((x / rect.width) * safeDurationMs);
+  };
+
   const handleMarkIn = () => {
     const video = videoRef.current;
     const nextMs = video ? Math.round(video.currentTime * 1000) : currentTimeMs;
@@ -470,24 +483,59 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setMarkOutMs(nextMs);
   };
 
-  const handleAddCut = async () => {
-    if (!isCutValid || markInMs === null || markOutMs === null) {
-      setCutError("Mark in/out needs at least 0.5s and must be within duration.");
+  const addCutRange = async (inMs: number, outMs: number) => {
+    if (outMs <= inMs) {
+      setCutError("Cut range must be at least 0.5s.");
       return;
     }
     setCutStatus("loading");
     setCutError(null);
     try {
-      const nextCuts = [...cuts, { id: createId(), inMs: markInMs, outMs: markOutMs }];
+      const nextCuts = [...cuts, { id: createId(), inMs, outMs }];
       const updated = await storage.setCuts(project.projectId, nextCuts);
       onProjectUpdated(updated);
-      setMarkInMs(null);
-      setMarkOutMs(null);
       setCutStatus("idle");
     } catch (error) {
       setCutStatus("error");
       setCutError(error instanceof Error ? error.message : "Unable to save cut.");
     }
+  };
+
+  const buildQuickCutRange = (ms: number): { inMs: number; outMs: number } | null => {
+    if (safeDurationMs <= 0) {
+      return null;
+    }
+    const minSpan = Math.min(MIN_CUT_DURATION_MS, safeDurationMs);
+    if (minSpan <= 0) {
+      return null;
+    }
+    if (ms + minSpan <= safeDurationMs) {
+      return { inMs: ms, outMs: ms + minSpan };
+    }
+    if (ms - minSpan >= 0) {
+      return { inMs: ms - minSpan, outMs: ms };
+    }
+    return { inMs: 0, outMs: minSpan };
+  };
+
+  const handleAddCutAt = async (ms: number) => {
+    const clamped = safeDurationMs > 0 ? Math.min(Math.max(ms, 0), safeDurationMs) : ms;
+    const range = buildQuickCutRange(clamped);
+    if (!range) {
+      setCutError("Unable to add cut at this position.");
+      return;
+    }
+    await addCutRange(range.inMs, range.outMs);
+  };
+
+  const handleAddCut = async () => {
+    if (!isCutValid || markInMs === null || markOutMs === null) {
+      setCutError("Mark in/out needs at least 0.5s and must be within duration.");
+      return;
+    }
+    await addCutRange(markInMs, markOutMs);
+    setMarkInMs(null);
+    setMarkOutMs(null);
   };
 
   const handleDeleteCut = async (cutId: string) => {
@@ -847,14 +895,21 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             className="hm-timeline-rail"
             onMouseMove={handleTimelineMouseMove}
             onMouseLeave={handleTimelineMouseLeave}
+            onClick={handleTimelineClick}
+            role="slider"
+            aria-label="Timeline"
           >
             {selectionStyle && <div className="hm-timeline-range" style={selectionStyle} />}
+            {hoverStyle && <div className="hm-timeline-ghost" style={hoverStyle} />}
             {markInMs !== null && (
               <button
                 type="button"
                 className="hm-marker hm-marker--in"
                 style={{ left: `${percentForMs(markInMs)}%` }}
-                onClick={() => handleSeekTo(markInMs)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleSeekTo(markInMs);
+                }}
                 aria-label="Jump to In marker"
                 title="Jump to In marker"
               />
@@ -864,7 +919,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 type="button"
                 className="hm-marker hm-marker--out"
                 style={{ left: `${percentForMs(markOutMs)}%` }}
-                onClick={() => handleSeekTo(markOutMs)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleSeekTo(markOutMs);
+                }}
                 aria-label="Jump to Out marker"
                 title="Jump to Out marker"
               />
@@ -875,9 +933,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 type="button"
                 className="hm-scissor"
                 style={hoverStyle}
-                onClick={() => void handleAddCut()}
-                aria-label="Add cut at playhead"
-                title="Add cut at playhead"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (timelineHoverMs !== null) {
+                    handleSeekTo(timelineHoverMs);
+                    void handleAddCutAt(timelineHoverMs);
+                  }
+                }}
+                disabled={cutStatus === "loading"}
+                aria-label="Split at playhead"
+                title="Split at playhead"
               >
                 <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                   <circle cx="4" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
