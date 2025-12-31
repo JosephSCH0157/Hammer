@@ -22,7 +22,7 @@ export type ProjectDoc = {
     height: number;
     fps?: number;
   };
-  transcript?: Transcript;
+  transcript?: TranscriptDoc;
   splits?: Split[];
   assets?: Asset[];
   edl: {
@@ -41,12 +41,16 @@ export type ProjectDoc = {
 export type TranscriptSegment = {
   id: string;
   startMs: number;
-  endMs?: number;
+  endMs: number;
   text: string;
+  speaker?: string;
+  confidence?: number;
 };
 
-export type Transcript = {
-  engine?: string;
+export type TranscriptDoc = {
+  id: string;
+  sourceAssetId?: string;
+  createdAt: number;
   language?: string;
   segments: TranscriptSegment[];
 };

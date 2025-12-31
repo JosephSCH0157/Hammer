@@ -1,4 +1,4 @@
-import type { Asset, Cut, ProjectDoc, Split, Transcript } from "../../core/types/project";
+import type { Asset, Cut, ProjectDoc, Split, TranscriptDoc } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 
 export class TongsProvider implements StorageProvider {
@@ -16,7 +16,7 @@ export class TongsProvider implements StorageProvider {
     throw new Error("TongsProvider not implemented");
   }
 
-  async setTranscript(_projectId: string, _transcript: Transcript): Promise<ProjectDoc> {
+  async setTranscript(_projectId: string, _transcript?: TranscriptDoc): Promise<void> {
     throw new Error("TongsProvider not implemented");
   }
 

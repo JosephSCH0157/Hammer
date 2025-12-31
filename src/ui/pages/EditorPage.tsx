@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
-import type { Asset, Cut, ProjectDoc, Split, Transcript, TranscriptSegment } from "../../core/types/project";
+import type { Asset, Cut, ProjectDoc, Split, TranscriptDoc, TranscriptSegment } from "../../core/types/project";
 import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
-import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
 import { computeKeptRanges } from "../../core/time/keptRanges";
 import { exportFull } from "../../features/export/exportFull";
+import {
+  buildTranscriptDoc,
+  parseSrt,
+  parseTxt,
+  parseVtt,
+} from "../../features/ingest/importMedia";
 
 const formatTimestamp = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -132,7 +137,7 @@ const logCutPlan = (project: ProjectDoc): void => {
   console.warn("Render plan debug:", { cuts: plan.cuts, keptDurationMs });
 };
 
-const buildStubTranscript = (durationMs: number): Transcript => {
+const buildStubTranscript = (durationMs: number, sourceAssetId?: string): TranscriptDoc => {
   const script = [
     { startMs: 0, text: "Intro and framing." },
     { startMs: 10_000, text: "Point one." },
@@ -149,17 +154,12 @@ const buildStubTranscript = (durationMs: number): Transcript => {
     const entry: TranscriptSegment = {
       id: `stub_${index}_${segment.startMs}`,
       startMs: segment.startMs,
+      endMs: next ? next.startMs : segment.startMs,
       text: segment.text,
     };
-    if (next) {
-      entry.endMs = next.startMs;
-    }
     return entry;
   });
-  return {
-    engine: "stub",
-    segments,
-  };
+  return buildTranscriptDoc(segments, sourceAssetId);
 };
 
 const findActiveSegmentId = (segments: TranscriptSegment[], currentMs: number): string | null => {
@@ -172,7 +172,8 @@ const findActiveSegmentId = (segments: TranscriptSegment[], currentMs: number): 
       continue;
     }
     const nextStartMs = segments[index + 1]?.startMs;
-    const endMs = segment.endMs ?? nextStartMs ?? Number.POSITIVE_INFINITY;
+    const endMs =
+      segment.endMs > segment.startMs ? segment.endMs : nextStartMs ?? Number.POSITIVE_INFINITY;
     if (currentMs >= segment.startMs && currentMs < endMs) {
       return segment.id;
     }
@@ -657,6 +658,36 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     importTranscriptRef.current?.click();
   };
 
+  const parseTranscriptFromText = (filename: string, text: string): TranscriptDoc => {
+    const lower = filename.toLowerCase();
+    let segments: TranscriptSegment[] = [];
+    if (lower.endsWith(".vtt")) {
+      segments = parseVtt(text);
+    } else if (lower.endsWith(".srt")) {
+      segments = parseSrt(text);
+    } else if (lower.endsWith(".txt")) {
+      segments = parseTxt(text);
+    } else {
+      segments = parseVtt(text);
+      if (segments.length === 0) {
+        segments = parseSrt(text);
+      }
+      if (segments.length === 0) {
+        segments = parseTxt(text);
+      }
+    }
+    if (segments.length === 0) {
+      throw new Error("Couldn't parse transcript (VTT/SRT/TXT).");
+    }
+    return buildTranscriptDoc(segments, project.source.asset.assetId);
+  };
+
+  const applyTranscript = async (transcript?: TranscriptDoc) => {
+    await storage.setTranscript(project.projectId, transcript);
+    const refreshed = await storage.loadProject(project.projectId);
+    onProjectUpdated(refreshed);
+  };
+
   const handleImportTranscriptChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.currentTarget.files?.[0];
     if (!file) {
@@ -666,9 +697,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setTranscriptError(null);
     try {
       const text = await file.text();
-      const transcript = importTranscriptJson(text);
-      const updated = await storage.setTranscript(project.projectId, transcript);
-      onProjectUpdated(updated);
+      const transcript = parseTranscriptFromText(file.name, text);
+      await applyTranscript(transcript);
       setTranscriptStatus("idle");
     } catch (error) {
       setTranscriptStatus("error");
@@ -684,9 +714,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setTranscriptStatus("loading");
     setTranscriptError(null);
     try {
-      const transcript = buildStubTranscript(project.source.durationMs);
-      const updated = await storage.setTranscript(project.projectId, transcript);
-      onProjectUpdated(updated);
+      const transcript = buildStubTranscript(
+        project.source.durationMs,
+        project.source.asset.assetId
+      );
+      await applyTranscript(transcript);
       setTranscriptStatus("idle");
     } catch (error) {
       setTranscriptStatus("error");
@@ -1047,11 +1079,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         <input
           ref={importTranscriptRef}
           type="file"
-          accept="application/json,.json"
+          accept=".vtt,.srt,.txt,text/plain"
           onChange={handleImportTranscriptChange}
           hidden
-          aria-label="Import transcript JSON"
-          title="Import transcript JSON"
+          aria-label="Import transcript"
+          title="Import transcript"
         />
         <input
           ref={importAssetsRef}
@@ -1087,17 +1119,20 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </button>
         </div>
         <div className="hm-leftrail-panels">
-          <section className="hm-panel hm-panel--transcript">
-            <div className="hm-panel-header">
-              <h2 className="hm-panel-title">Transcript</h2>
-              <div className="hm-panel-actions">
-                <button
-                  className="hm-button hm-button--ghost"
-                  onClick={handleImportTranscriptClick}
-                  disabled={transcriptStatus === "loading"}
-                >
-                  Import JSON
-                </button>
+            <section className="hm-panel hm-panel--transcript">
+              <div className="hm-panel-header">
+              <div className="hm-panel-titleRow">
+                <h2 className="hm-panel-title">Transcript</h2>
+                <span className="hm-panel-count">{segments.length} segments</span>
+              </div>
+                <div className="hm-panel-actions">
+                  <button
+                    className="hm-button hm-button--ghost"
+                    onClick={handleImportTranscriptClick}
+                    disabled={transcriptStatus === "loading"}
+                  >
+                    Import transcript
+                  </button>
                 <button
                   className="hm-button"
                   onClick={handleGenerateTranscript}
@@ -1107,32 +1142,37 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 </button>
               </div>
             </div>
-            <div className="hm-panel-body">
-              {transcriptStatus === "error" && (
-                <p className="stacked-gap">Transcript error: {transcriptError}</p>
-              )}
-              {segments.length === 0 ? (
+              <div className="hm-panel-body">
+                {transcriptStatus === "error" && (
+                  <p className="stacked-gap">Transcript error: {transcriptError}</p>
+                )}
+                {transcriptStatus === "loading" && (
+                  <p className="muted stacked-gap">Importing transcript...</p>
+                )}
+                {segments.length === 0 ? (
                 <p className="muted stacked-gap-lg">
                   No transcript yet. Generate a stub to wire up interaction.
                 </p>
-              ) : (
-                <div className="transcript-list">
-                  {segments.map((segment) => {
-                    const isActive = segment.id === activeSegmentId;
-                    return (
-                      <button
-                        key={segment.id}
-                        onClick={() => handleSegmentClick(segment)}
-                        className={`transcript-segment${isActive ? " active" : ""}`}
-                      >
-                        <div className="transcript-timestamp">
-                          {formatTimestamp(segment.startMs)}
-                        </div>
-                        <div className="transcript-text">{segment.text}</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                ) : (
+                  <div className="transcript-list">
+                    {segments.map((segment) => {
+                      const isActive = segment.id === activeSegmentId;
+                      const hasRange = segment.endMs > segment.startMs;
+                      const timeLabel = hasRange
+                        ? `${formatTimestamp(segment.startMs)} – ${formatTimestamp(segment.endMs)}`
+                        : formatTimestamp(segment.startMs);
+                      return (
+                        <button
+                          key={segment.id}
+                          onClick={() => handleSegmentClick(segment)}
+                          className={`transcript-segment${isActive ? " active" : ""}`}
+                        >
+                          <div className="transcript-timestamp">{timeLabel}</div>
+                          <div className="transcript-text">{segment.text}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
               )}
             </div>
           </section>

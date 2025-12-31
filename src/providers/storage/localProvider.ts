@@ -1,4 +1,4 @@
-import type { Asset, AssetRef, Cut, ProjectDoc, ProviderId, Split, Transcript } from "../../core/types/project";
+import type { Asset, AssetRef, Cut, ProjectDoc, ProviderId, Split, TranscriptDoc, TranscriptSegment } from "../../core/types/project";
 import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
@@ -29,6 +29,7 @@ const buildSummary = (doc: ProjectDoc): ProjectListItem => {
     width: doc.source.width,
     height: doc.source.height,
     hasTranscript: (doc.transcript?.segments?.length ?? 0) > 0,
+    transcriptSegmentsCount: doc.transcript?.segments?.length ?? 0,
     cutsCount: doc.edl?.cuts?.length ?? 0,
     splitsCount: doc.splits?.length ?? 0,
     assetsCount: doc.assets?.length ?? 0,
@@ -53,6 +54,21 @@ const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, Pr
 type LegacyProjectSource = Omit<ProjectDoc["source"], "asset"> & { assetId: string };
 type LegacyCut = { startMs?: number; endMs?: number; reason?: string; enabled?: boolean };
 type LegacyEdl = { cuts?: LegacyCut[] };
+type LegacyTranscriptSegment = {
+  id?: string;
+  startMs?: number;
+  endMs?: number;
+  text?: string;
+  speaker?: string;
+  confidence?: number;
+};
+type LegacyTranscript = {
+  id?: string;
+  sourceAssetId?: string;
+  createdAt?: number;
+  language?: string;
+  segments?: LegacyTranscriptSegment[];
+};
 type LegacyProjectDoc = Omit<ProjectDoc, "source" | "edl"> & {
   source: LegacyProjectSource;
   edl?: LegacyEdl;
@@ -183,6 +199,60 @@ const normalizeSplits = (
   return { splits: normalized, migrated: normalized.length !== splits.length };
 };
 
+const normalizeTranscript = (
+  transcript: ProjectDoc["transcript"] | LegacyTranscript | undefined
+): { transcript?: TranscriptDoc; migrated: boolean } => {
+  if (!transcript) {
+    return { migrated: false };
+  }
+  const rawSegments = Array.isArray(transcript.segments) ? transcript.segments : [];
+  const normalizedSegments: TranscriptSegment[] = rawSegments.reduce((acc, segment, index) => {
+    if (!segment || typeof segment !== "object") {
+      return acc;
+    }
+    const rawStart = typeof segment.startMs === "number" ? segment.startMs : 0;
+    const rawEnd = typeof segment.endMs === "number" ? segment.endMs : rawStart;
+    const startMs = Number.isFinite(rawStart) ? Math.max(0, rawStart) : 0;
+    const endMs = Number.isFinite(rawEnd) ? Math.max(startMs, rawEnd) : startMs;
+    const text = typeof segment.text === "string" ? segment.text.trim() : "";
+    if (!text) {
+      return acc;
+    }
+    const id =
+      typeof segment.id === "string" && segment.id.trim().length > 0
+        ? segment.id.trim()
+        : `seg_${index}_${startMs}`;
+    const entry: TranscriptSegment = { id, startMs, endMs, text };
+    if (typeof segment.speaker === "string" && segment.speaker.trim().length > 0) {
+      entry.speaker = segment.speaker.trim();
+    }
+    if (typeof segment.confidence === "number") {
+      entry.confidence = segment.confidence;
+    }
+    acc.push(entry);
+    return acc;
+  }, [] as TranscriptSegment[]);
+  normalizedSegments.sort((a, b) => a.startMs - b.startMs);
+  const doc: TranscriptDoc = {
+    id:
+      typeof transcript.id === "string" && transcript.id.trim().length > 0
+        ? transcript.id.trim()
+        : createId(),
+    createdAt:
+      typeof transcript.createdAt === "number" && Number.isFinite(transcript.createdAt)
+        ? transcript.createdAt
+        : Date.now(),
+    segments: normalizedSegments,
+  };
+  if (typeof transcript.sourceAssetId === "string" && transcript.sourceAssetId.trim().length > 0) {
+    doc.sourceAssetId = transcript.sourceAssetId.trim();
+  }
+  if (typeof transcript.language === "string" && transcript.language.trim().length > 0) {
+    doc.language = transcript.language.trim();
+  }
+  return { transcript: doc, migrated: true };
+};
+
 type LegacyAssets = { referencedAssetIds?: string[] };
 
 const normalizeAssets = (
@@ -239,30 +309,44 @@ const normalizeProjectDocs = (
     const normalizedEdl = normalizeCuts(doc.edl);
     const normalizedSplits = normalizeSplits(doc.splits);
     const normalizedAssets = normalizeAssets(doc.assets);
+    const normalizedTranscript = normalizeTranscript(doc.transcript);
     if (!normalizedSource) {
-      normalized[projectId] = {
+      const base: ProjectDoc = {
         ...(doc as ProjectDoc),
         edl: normalizedEdl.edl,
         splits: normalizedSplits.splits,
         assets: normalizedAssets.assets,
       };
+      if (normalizedTranscript.transcript) {
+        base.transcript = normalizedTranscript.transcript;
+      }
+      normalized[projectId] = base;
       migrated =
-        migrated || normalizedEdl.migrated || normalizedSplits.migrated || normalizedAssets.migrated;
+        migrated ||
+        normalizedEdl.migrated ||
+        normalizedSplits.migrated ||
+        normalizedAssets.migrated ||
+        normalizedTranscript.migrated;
       return;
     }
-    normalized[projectId] = {
+    const normalizedDoc: ProjectDoc = {
       ...doc,
       source: normalizedSource.source,
       edl: normalizedEdl.edl,
       splits: normalizedSplits.splits,
       assets: normalizedAssets.assets,
     };
+    if (normalizedTranscript.transcript) {
+      normalizedDoc.transcript = normalizedTranscript.transcript;
+    }
+    normalized[projectId] = normalizedDoc;
     migrated =
       migrated ||
       normalizedSource.migrated ||
       normalizedEdl.migrated ||
       normalizedSplits.migrated ||
-      normalizedAssets.migrated;
+      normalizedAssets.migrated ||
+      normalizedTranscript.migrated;
   });
   return { docs: normalized, migrated };
 };
@@ -351,7 +435,8 @@ const loadProjectIndex = (): Record<string, ProjectListItem> => {
         (item) =>
           typeof item.cutsCount !== "number" ||
           typeof item.splitsCount !== "number" ||
-          typeof item.assetsCount !== "number"
+          typeof item.assetsCount !== "number" ||
+          typeof item.transcriptSegmentsCount !== "number"
       );
       if (!needsRebuild) {
         return parsed;
@@ -505,7 +590,7 @@ export class LocalStorageProvider implements StorageProvider {
     return updatedDoc;
   }
 
-  async setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc> {
+  async setTranscript(projectId: string, transcript?: TranscriptDoc): Promise<void> {
     const docs = loadProjectDocs();
     const index = loadProjectIndex();
     const existing = docs[projectId];
@@ -514,14 +599,17 @@ export class LocalStorageProvider implements StorageProvider {
     }
     const updatedDoc: ProjectDoc = {
       ...existing,
-      transcript,
       updatedAt: new Date().toISOString(),
     };
+    if (transcript) {
+      updatedDoc.transcript = transcript;
+    } else {
+      delete updatedDoc.transcript;
+    }
     docs[projectId] = updatedDoc;
     index[projectId] = buildSummary(updatedDoc);
     saveProjectDocs(docs);
     saveProjectIndex(index);
-    return updatedDoc;
   }
 
   async setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc> {

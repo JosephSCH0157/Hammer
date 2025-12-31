@@ -1,4 +1,4 @@
-import type { Asset, AssetId, Cut, ProjectDoc, ProviderId, Split, Transcript } from "../../core/types/project";
+import type { Asset, AssetId, Cut, ProjectDoc, ProviderId, Split, TranscriptDoc } from "../../core/types/project";
 
 export type ProjectListItem = {
   projectId: string;
@@ -9,6 +9,7 @@ export type ProjectListItem = {
   width: number;
   height: number;
   hasTranscript: boolean;
+  transcriptSegmentsCount?: number;
   cutsCount: number;
   splitsCount: number;
   assetsCount: number;
@@ -32,7 +33,7 @@ export interface StorageProvider {
   /** Re-link a project source asset by storing a new file and updating the project. */
   relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
   /** Set transcript data for a project. */
-  setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
+  setTranscript(projectId: string, transcript?: TranscriptDoc): Promise<void>;
   /** Set edit decision cuts for a project. */
   setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc>;
   /** Set split markers for a project. */

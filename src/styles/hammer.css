@@ -304,6 +304,17 @@ textarea:focus {
   font-size: 14px;
 }
 
+.hm-panel-titleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hm-panel-count {
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
 .hm-panel-actions {
   display: flex;
   gap: 8px;
@@ -345,6 +356,13 @@ textarea:focus {
 .transcript-timestamp {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--forge-border);
+  background: var(--forge-panel-2);
+  color: var(--forge-muted);
 }
 
 .transcript-text {

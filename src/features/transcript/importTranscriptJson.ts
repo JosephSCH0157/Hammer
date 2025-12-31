@@ -1,4 +1,4 @@
-import type { Transcript, TranscriptSegment } from "../../core/types/project";
+import type { TranscriptDoc, TranscriptSegment } from "../../core/types/project";
 
 type RawSeg = {
   id?: unknown;
@@ -35,7 +35,7 @@ const asText = (value: unknown): string | null => {
 const makeId = (index: number): string =>
   `seg_${index}_${Math.random().toString(36).slice(2, 8)}`;
 
-export const importTranscriptJson = (jsonText: string): Transcript => {
+export const importTranscriptJson = (jsonText: string): TranscriptDoc => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonText);
@@ -82,14 +82,20 @@ export const importTranscriptJson = (jsonText: string): Transcript => {
       normalizedEndMs = parsedEndMs;
     }
 
-    const entry: TranscriptSegment = { id, startMs, text };
-    if (normalizedEndMs !== undefined) {
-      entry.endMs = normalizedEndMs;
-    }
+    const entry: TranscriptSegment = {
+      id,
+      startMs,
+      endMs: normalizedEndMs ?? startMs,
+      text,
+    };
     return entry;
   });
 
   segments.sort((a, b) => a.startMs - b.startMs);
 
-  return { segments };
+  return {
+    id: `transcript_${Math.random().toString(36).slice(2, 10)}`,
+    createdAt: Date.now(),
+    segments,
+  };
 };
