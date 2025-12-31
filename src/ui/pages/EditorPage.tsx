@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { Cut, ProjectDoc, Transcript, TranscriptSegment } from "../../core/types/project";
-import type { RenderPlan } from "../../core/types/render";
+import type { ExportResult, RenderPlan } from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { importTranscriptJson } from "../../features/transcript/importTranscriptJson";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
 import { computeKeptRanges } from "../../core/time/keptRanges";
+import { exportFull } from "../../features/export/exportFull";
 
 const formatTimestamp = (ms: number): string => {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -87,6 +88,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [cutStatus, setCutStatus] = useState<"idle" | "loading" | "error">("idle");
   const [cutError, setCutError] = useState<string | null>(null);
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
+  const [exportStatus, setExportStatus] = useState<
+    "idle" | "preparing" | "encoding" | "saving" | "done" | "error"
+  >("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
@@ -107,6 +113,19 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     markOutMs > markInMs &&
     markOutMs - markInMs >= MIN_CUT_DURATION_MS &&
     markOutMs <= project.source.durationMs;
+  const exportBusy = exportStatus === "preparing" || exportStatus === "encoding" || exportStatus === "saving";
+  const exportStatusLabel =
+    exportStatus === "preparing"
+      ? "Preparing..."
+      : exportStatus === "encoding"
+        ? "Encoding..."
+        : exportStatus === "saving"
+          ? "Saving..."
+          : exportStatus === "done"
+            ? "Export ready"
+            : exportStatus === "error"
+              ? "Export failed"
+              : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +242,23 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     } catch (error) {
       setTranscriptStatus("error");
       setTranscriptError(error instanceof Error ? error.message : "Unknown error");
+    }
+  };
+
+  const handleExportFull = async () => {
+    setExportStatus("preparing");
+    setExportError(null);
+    setExportResult(null);
+    try {
+      const plan = buildRenderPlan(project);
+      const result = await exportFull(plan, storage, project.source.durationMs, (phase) =>
+        setExportStatus(phase)
+      );
+      setExportResult(result);
+      setExportStatus("done");
+    } catch (error) {
+      setExportStatus("error");
+      setExportError(error instanceof Error ? error.message : "Export failed.");
     }
   };
 
@@ -398,7 +434,22 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       <div className="hammer-header">
         <button onClick={onBack}>← Back</button>
         <h1 className="hammer-title">Hammer v0.01</h1>
+        <div className="hammer-header-actions">
+          <button onClick={handleExportFull} disabled={exportBusy}>
+            Export Full
+          </button>
+          {exportStatusLabel && <span className="export-status">{exportStatusLabel}</span>}
+        </div>
       </div>
+
+      {exportStatus === "error" && exportError && (
+        <p className="export-summary">Export error: {exportError}</p>
+      )}
+      {exportStatus === "done" && exportResult && (
+        <p className="export-summary">
+          Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)})
+        </p>
+      )}
 
       <p className="hammer-subtitle">
         Editor shell (metadata + preview). Next: transcript panel.

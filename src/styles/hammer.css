@@ -9,8 +9,27 @@
   align-items: center;
 }
 
+.hammer-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .hammer-title {
   margin: 0;
+}
+
+.export-status {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.export-summary {
+  margin-top: 8px;
+  opacity: 0.8;
+  font-size: 12px;
 }
 
 .hammer-subtitle {
