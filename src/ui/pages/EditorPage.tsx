@@ -25,6 +25,7 @@ const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
   const normalizedCuts = normalizeCuts(cutRanges, durationMs);
   return {
     sourceAssetId: project.source.asset.assetId,
+    sourceDurationMs: durationMs,
     cuts: normalizedCuts,
     output: { format: "mp4", quality: "draft" },
   };
@@ -32,7 +33,7 @@ const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
 
 const logCutPlan = (project: ProjectDoc): void => {
   const plan = buildRenderPlan(project);
-  const keptDurationMs = computeKeptDurationMs(project.source.durationMs, plan.cuts);
+  const keptDurationMs = computeKeptDurationMs(plan.sourceDurationMs, plan.cuts);
   console.warn("Render plan debug:", { cuts: plan.cuts, keptDurationMs });
 };
 
@@ -251,9 +252,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setExportResult(null);
     try {
       const plan = buildRenderPlan(project);
-      const result = await exportFull(plan, storage, project.source.durationMs, (phase) =>
-        setExportStatus(phase)
-      );
+      const result = await exportFull(plan, storage, (phase) => setExportStatus(phase));
       setExportResult(result);
       setExportStatus("done");
     } catch (error) {
@@ -447,7 +446,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       )}
       {exportStatus === "done" && exportResult && (
         <p className="export-summary">
-          Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)})
+          Export ready: {exportResult.filename} ({formatDuration(exportResult.durationMs)}, {exportResult.bytes}{" "}
+          bytes, {exportResult.mime})
         </p>
       )}
 

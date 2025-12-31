@@ -12,6 +12,7 @@ export type RenderOutputConfig = {
 
 export type RenderPlan = {
   sourceAssetId: AssetId;
+  sourceDurationMs: number;
   cuts: CutRangeMs[];
   output: RenderOutputConfig;
 };
@@ -20,4 +21,6 @@ export type ExportResult = {
   assetId: AssetId;
   filename: string;
   durationMs: number;
+  bytes: number;
+  mime: string;
 };

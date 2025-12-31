@@ -12,11 +12,10 @@ const buildFilename = (): string => {
 export const exportFull = async (
   plan: RenderPlan,
   storage: StorageProvider,
-  sourceDurationMs: number,
   onPhase?: (phase: ExportPhase) => void
 ): Promise<ExportResult> => {
   onPhase?.("preparing");
-  const keptDurationMs = computeKeptDurationMs(sourceDurationMs, plan.cuts);
+  const keptDurationMs = computeKeptDurationMs(plan.sourceDurationMs, plan.cuts);
 
   onPhase?.("encoding");
   const payload = [
@@ -36,5 +35,7 @@ export const exportFull = async (
     assetId: asset.assetId,
     filename,
     durationMs: keptDurationMs,
+    bytes: blob.size,
+    mime: blob.type,
   };
 };
