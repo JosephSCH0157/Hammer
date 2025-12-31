@@ -83,42 +83,41 @@ export function ProjectPickerPage({ storage, onOpenProject }: Props) {
   };
 
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
+    <div className="hammer-page">
       <h1>Hammer v0.01</h1>
       <p>Pick a project, or import a new video.</p>
 
-      <div style={{ margin: "12px 0" }}>
-        <input type="file" accept="video/*" onChange={handleImport} />
+      <div className="project-import">
+        <label htmlFor="import-video">Import video file</label>
+        <input
+          id="import-video"
+          type="file"
+          accept="video/*"
+          onChange={handleImport}
+        />
       </div>
 
       {status === "loading" && <p>Loading projects...</p>}
       {status === "error" && <p>Error: {error}</p>}
 
-      <h2 style={{ marginTop: 24 }}>Projects</h2>
+      <h2 className="project-title">Projects</h2>
       {items.length === 0 ? (
-        <p style={{ opacity: 0.8 }}>No projects yet. Import a video to create one.</p>
+        <p className="muted">No projects yet. Import a video to create one.</p>
       ) : (
-        <div style={{ display: "grid", gap: 8 }}>
+        <div className="project-grid">
           {items.map((p) => (
-            <div
-              key={p.projectId}
-              style={{
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 8,
-                padding: 12
-              }}
-            >
-              <div style={{ fontWeight: 600 }}>{p.filename}</div>
-              <div style={{ opacity: 0.8, fontSize: 12 }}>
+            <div key={p.projectId} className="project-card">
+              <div className="project-name">{p.filename}</div>
+              <div className="project-meta">
                 Updated: {new Date(p.updatedAt).toLocaleString()}
               </div>
-              <div style={{ opacity: 0.8, fontSize: 12 }}>
+              <div className="project-meta">
                 Duration: {formatDuration(p.durationMs)} | {p.width}x{p.height} |{" "}
                 {p.hasTranscript ? "Transcript" : "No transcript"}
               </div>
 
-              <div style={{ marginTop: 10 }}>
-                <div style={{ display: "flex", gap: 8 }}>
+              <div className="project-actions">
+                <div className="project-actions-row">
                   <button onClick={() => void handleOpen(p.projectId)}>Open</button>
                   <button onClick={() => void handleDelete(p.projectId, p.filename)}>Delete</button>
                 </div>

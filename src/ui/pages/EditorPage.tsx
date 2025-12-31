@@ -219,13 +219,13 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     setActiveSegmentId((prev) => (prev === nextActiveId ? prev : nextActiveId));
   };
   return (
-    <div style={{ padding: 16, fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <div className="hammer-page">
+      <div className="hammer-header">
         <button onClick={onBack}>← Back</button>
-        <h1 style={{ margin: 0 }}>Hammer v0.01</h1>
+        <h1 className="hammer-title">Hammer v0.01</h1>
       </div>
 
-      <p style={{ marginTop: 12, opacity: 0.9 }}>
+      <p className="hammer-subtitle">
         Editor shell (metadata + preview). Next: transcript panel.
       </p>
 
@@ -249,16 +249,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         title="Import transcript JSON"
       />
 
-      <div style={{ marginTop: 16 }}>
+      <div className="section">
         {assetStatus === "loading" && <p>Loading video...</p>}
         {assetStatus === "error" && (
           <div>
             <p>{assetError ?? "Source media not found on this device."}</p>
-            <p style={{ marginTop: 8, opacity: 0.8 }}>
+            <p className="muted stacked-gap">
               Stored source: {project.source.filename}
             </p>
             {lastRelinkFilename && (
-              <p style={{ marginTop: 8, opacity: 0.8 }}>
+              <p className="muted stacked-gap">
                 Selected file: {lastRelinkFilename}
               </p>
             )}
@@ -266,12 +266,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               Re-link source file
             </button>
             {relinkStatus === "error" && (
-              <p style={{ marginTop: 8 }}>Re-link failed: {relinkError}</p>
+              <p className="stacked-gap">Re-link failed: {relinkError}</p>
             )}
-            {relinkStatus === "loading" && <p style={{ marginTop: 8 }}>Re-linking...</p>}
+            {relinkStatus === "loading" && <p className="stacked-gap">Re-linking...</p>}
             {canRetry && (
               <button
-                style={{ marginLeft: 8 }}
+                className="retry-button"
                 onClick={() => setRetryCount((count) => count + 1)}
                 disabled={relinkStatus === "loading"}
               >
@@ -286,29 +286,15 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             controls
             src={videoUrl}
             onTimeUpdate={handleTimeUpdate}
-            style={{ width: "100%", maxWidth: 960, borderRadius: 8 }}
+            className="editor-video"
           />
         )}
       </div>
 
-      <div
-        style={{
-          marginTop: 24,
-          borderTop: "1px solid rgba(255,255,255,0.12)",
-          paddingTop: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: 16 }}>Transcript</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div className="transcript-section">
+        <div className="transcript-header">
+          <h2 className="transcript-title">Transcript</h2>
+          <div className="transcript-actions">
             <button
               onClick={handleImportTranscriptClick}
               disabled={transcriptStatus === "loading"}
@@ -321,23 +307,14 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </div>
         </div>
         {transcriptStatus === "error" && (
-          <p style={{ marginTop: 8 }}>Transcript error: {transcriptError}</p>
+          <p className="stacked-gap">Transcript error: {transcriptError}</p>
         )}
         {segments.length === 0 ? (
-          <p style={{ marginTop: 12, opacity: 0.8 }}>
+          <p className="muted stacked-gap-lg">
             No transcript yet. Generate a stub to wire up interaction.
           </p>
         ) : (
-          <div
-            style={{
-              marginTop: 12,
-              display: "grid",
-              gap: 8,
-              maxHeight: 240,
-              overflowY: "auto",
-              paddingRight: 4,
-            }}
-          >
+          <div className="transcript-list">
             {segments.map((segment, index) => {
               const segmentId = segment.id ?? `segment_${index}_${segment.startMs}`;
               const isActive = segmentId === activeSegmentId;
@@ -345,19 +322,12 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 <button
                   key={segmentId}
                   onClick={() => handleSegmentClick(segment, segmentId)}
-                  style={{
-                    textAlign: "left",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    background: isActive ? "rgba(255,255,255,0.08)" : "transparent",
-                    color: "inherit",
-                  }}
+                  className={`transcript-segment${isActive ? " active" : ""}`}
                 >
-                  <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                  <div className="transcript-timestamp">
                     {formatTimestamp(segment.startMs)}
                   </div>
-                  <div style={{ marginTop: 4 }}>{segment.text}</div>
+                  <div className="transcript-text">{segment.text}</div>
                 </button>
               );
             })}
@@ -365,7 +335,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         )}
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      <div className="section">
         <div>
           <b>Project ID:</b> {project.projectId}
         </div>
@@ -376,7 +346,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           <b>Duration:</b> {project.source.durationMs} ms ({project.source.width}x
           {project.source.height})
         </div>
-        <div style={{ opacity: 0.8, fontSize: 12, marginTop: 8 }}>
+        <div className="meta-muted">
           Created: {project.createdAt} • Updated: {project.updatedAt}
         </div>
       </div>
