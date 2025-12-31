@@ -215,6 +215,8 @@ Primary goal:
 
 Replace Descript for real-world podcast editing before worrying about marketplace polish.
 
+See MANIFEST.md §1.1 Foundation Guardrails — this project is not a throwaway prototype.
+
 Relationship to Podcaster’s Forge
 
 Hammer is one tool in the Forge pipeline:
