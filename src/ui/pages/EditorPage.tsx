@@ -1094,7 +1094,18 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             </button>
           </div>
         </div>
-        <div className="hm-placementLaneShell" aria-hidden="true" />
+        <div className="hm-placementLane" aria-label="Placement lane">
+          <div
+            className="hm-placementTrack"
+            style={{
+              width: timelineContentWidth,
+              transform: `translateX(${-scrollLeft}px)`,
+            }}
+          >
+            <div className="hm-placementRail" />
+            <div className="hm-placementEmpty">Drop assets here</div>
+          </div>
+        </div>
         <div className="hm-timeline-track">
           <div
             className="hm-timelineScroll"
