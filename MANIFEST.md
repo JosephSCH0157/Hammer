@@ -412,7 +412,19 @@ engine: "webcodecs" | "mediaRecorder" | "placeholder";
 Renderer consumes plan + source media and returns ExportResult.
 Renderer is free to implement internally (WASM, WebCodecs, etc).
 
-6. UI (v0.01 Panels)
+6. Editorial Rules (Non-Negotiable)
+
+HAMR ships with a single, fixed editing model. These rules are constraints—not aspirational features—and sit above UI or engine decisions that build on them:
+
+- **Subtractive editing only.** Every transcript edit removes content and becomes an EDL cut. No added text generates audio/video; no synthetic voices.
+- **Single truth timeline.** Video, audio, and transcript share one authoritative timeline. Nothing edits audio independently of its corresponding video.
+- **Overlay versus splice behavior.** Overlays are visual-only coverage that do not own time or affect A-roll audio. Splices replace both video and audio, own the affected range, and suspend transcript alignment until the A-roll returns; A-roll audio never plays beneath a splice.
+- **No multi-layer stacks.** HAMR intentionally avoids multiple overlays, independent audio/video tracks, or arbitrary z-order layering.
+- **Authenticity first.** No synthetic performances, no desync between lips and audio, and nothing that forces AI disclosure; if someone appears to talk, the audio matches.
+
+These rules are constant; they already guide ProjectDoc, EDL, and playback behaviors, so UI/feature work can point back to this section for the canonical answer to “why not?”
+
+7. UI (v0.01 Panels)
 
 Minimal, shippable layout:
 
