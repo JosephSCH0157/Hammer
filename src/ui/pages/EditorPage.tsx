@@ -23,6 +23,7 @@ import { computeKeptRanges } from "../../core/time/keptRanges";
 import { decodeMediaToPcm } from "../../features/asr/audioDecode";
 import {
   createOfflineWhisperClient,
+  type OfflineWhisperPhase,
   type OfflineWhisperResult,
   type OfflineWhisperStatus,
 } from "../../features/asr/offlineWhisperClient";
