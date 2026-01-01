@@ -73,7 +73,6 @@ Presets (atomic): export presets, caption styles, title/lower-thirds, audio pres
 Future: Forge-curated fixed workspaces (not user-editable).
 
 3. Product Requirements
-4. Product Requirements
    3.1 Import + Transcript
 
 Input: MP4 / MOV (and common web formats supported by browser)
