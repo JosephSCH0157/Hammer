@@ -3,8 +3,12 @@ import type { ProjectDoc } from "../../core/types/project";
 import { LocalStorageProvider } from "../../providers/storage/localProvider";
 import { EditorPage } from "./EditorPage";
 import { ProjectHubPage } from "./ProjectHubPage";
+import { TranscriptPage } from "./TranscriptPage";
 
-type Route = { kind: "hub" } | { kind: "editor"; projectId: string };
+type EditorView = "editor" | "transcript";
+type Route =
+  | { kind: "hub" }
+  | { kind: "editor"; projectId: string; view: EditorView };
 
 type ProjectState =
   | { status: "idle"; project: null; error: null }
@@ -15,10 +19,18 @@ type ProjectState =
 const parseRoute = (pathname: string): Route => {
   const trimmed = pathname.replace(/\/+$/, "");
   if (trimmed.startsWith("/editor/")) {
-    const projectId = decodeURIComponent(trimmed.slice("/editor/".length));
-    if (projectId) {
-      return { kind: "editor", projectId };
+    const remainder = trimmed.slice("/editor/".length);
+    if (!remainder) {
+      return { kind: "hub" };
     }
+    const [encodedProjectId, ...rest] = remainder.split("/");
+    const projectId = decodeURIComponent(encodedProjectId);
+    if (!projectId) {
+      return { kind: "hub" };
+    }
+    const view: EditorView =
+      rest.length > 0 && rest[0] === "transcript" ? "transcript" : "editor";
+    return { kind: "editor", projectId, view };
   }
   return { kind: "hub" };
 };
@@ -105,14 +117,33 @@ export function App() {
       );
     }
     if (projectState.status === "ready") {
+      if (route.view === "editor") {
+        return (
+          <EditorPage
+            project={projectState.project}
+            storage={storage}
+            onProjectUpdated={(project) =>
+              setProjectState({ status: "ready", project, error: null })
+            }
+            onBack={() => navigate("/")}
+            onViewTranscript={() =>
+              navigate(
+                `/editor/${encodeURIComponent(
+                  projectState.project.projectId,
+                )}/transcript`,
+              )
+            }
+          />
+        );
+      }
       return (
-        <EditorPage
+        <TranscriptPage
           project={projectState.project}
-          storage={storage}
-          onProjectUpdated={(project) =>
-            setProjectState({ status: "ready", project, error: null })
+          onBack={() =>
+            navigate(
+              `/editor/${encodeURIComponent(projectState.project.projectId)}`,
+            )
           }
-          onBack={() => navigate("/")}
         />
       );
     }

@@ -158,6 +158,34 @@ const normalizeSegments = (transcript: TranscriptDoc): TranscriptSegment[] => {
     .sort((a, b) => a.startMs - b.startMs);
 };
 
+export const SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS = 30;
+export const SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS = 60_000;
+export const SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS =
+  SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS;
+
+export const isTranscriptValidForShorts = (
+  transcript: TranscriptDoc,
+): boolean => {
+  const normalized = normalizeSegments(transcript);
+  if (normalized.length < SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS) {
+    return false;
+  }
+  const lastSegment = normalized[normalized.length - 1];
+  if (
+    !lastSegment ||
+    lastSegment.endMs <= SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS
+  ) {
+    return false;
+  }
+  const nonEmptyTextCount = transcript.segments.filter(
+    (segment) => segment.text.trim().length > 0,
+  ).length;
+  if (nonEmptyTextCount < SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS) {
+    return false;
+  }
+  return true;
+};
+
 const isGoodBoundary = (text: string): boolean => {
   const trimmed = text.trim();
   if (/[.!?]\s*$/.test(trimmed)) {

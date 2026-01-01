@@ -27,7 +27,13 @@ import {
   type OfflineWhisperStatus,
 } from "../../features/asr/offlineWhisperClient";
 import { exportFull } from "../../features/export/exportFull";
-import { generateShortSuggestions } from "../../features/shorts/shortsEngine";
+import {
+  generateShortSuggestions,
+  isTranscriptValidForShorts,
+  SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS,
+  SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS,
+  SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS,
+} from "../../features/shorts/shortsEngine";
 import {
   buildTranscriptDoc,
   parseSrt,
@@ -216,6 +222,7 @@ type Props = {
   storage: StorageProvider;
   onProjectUpdated: (project: ProjectDoc) => void;
   onBack: () => void;
+  onViewTranscript: () => void;
 };
 
 export function EditorPage({
@@ -223,6 +230,7 @@ export function EditorPage({
   storage,
   onProjectUpdated,
   onBack,
+  onViewTranscript,
 }: Props) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "error">(
@@ -316,18 +324,16 @@ export function EditorPage({
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
-  const SHORTS_MIN_SEGMENTS = 30;
-  const SHORTS_MIN_TRANSCRIPT_DURATION_MS = 60_000;
-  const lastSegment =
-    segments.length > 0 ? segments[segments.length - 1] : undefined;
-  const lastSegmentEndMs = lastSegment ? lastSegment.endMs : 0;
-  const hasNonEmptySegments = segments.some(
-    (segment) => segment.text.trim().length > 0,
+  const isTranscriptValid = Boolean(
+    project.transcript && isTranscriptValidForShorts(project.transcript),
   );
-  const hasUsableTranscriptForShorts =
-    segments.length >= SHORTS_MIN_SEGMENTS &&
-    lastSegmentEndMs > SHORTS_MIN_TRANSCRIPT_DURATION_MS &&
-    hasNonEmptySegments;
+  const shortsBlocked = !isTranscriptValid;
+  const minTranscriptSeconds = Math.round(
+    SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS / 1000,
+  );
+  const shortsBlockedMessage = shortsBlocked
+    ? `Shorts need a transcript with at least ${SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS} segments, ${minTranscriptSeconds}s of coverage, and ${SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS} text lines. Generate or import one to continue.`
+    : "";
   const visibleAssets = useMemo(() => {
     const nameFor = (asset: Asset) => asset.displayName ?? asset.name;
     const compareName = (a: Asset, b: Asset) =>
@@ -525,10 +531,6 @@ export function EditorPage({
       ? "WebGPU"
       : "CPU"
     : "";
-  const shortsBlocked = !hasUsableTranscriptForShorts;
-  const shortsBlockedMessage = shortsBlocked
-    ? "No usable transcript yet. Generate Offline Transcript first."
-    : "";
   const hasTranscript = segments.length > 0;
   const transcriptStatusPillParts = [asrStatusLabel];
   if (asrProgressLabel) {
@@ -546,6 +548,12 @@ export function EditorPage({
   const transcriptGenerateLabel = hasTranscript
     ? "Regenerate"
     : "Generate transcript";
+  const shortsButtonLabel =
+    shortsStatus === "loading"
+      ? "Generating..."
+      : shortsBlocked
+        ? "Generate Transcript first"
+        : "Generate";
 
   useEffect(() => {
     let cancelled = false;
@@ -1851,17 +1859,27 @@ export function EditorPage({
           ) : activeRightTab === "transcript" ? (
             <section className="hm-right-panel hm-right-panel--transcript">
               <div className="hm-transcript-header">
-                <div className="hm-transcript-header-row hm-transcript-header-row--top">
-                  <div className="hm-panel-titleRow hm-transcript-header-title">
-                    <h2 className="hm-panel-title">Transcript</h2>
-                    <span className="hm-panel-count">
-                      {segments.length} segments
-                    </span>
-                  </div>
-                  <span className="hm-transcript-pill">
-                    {transcriptStatusPill}
-                  </span>
-                </div>
+            <div className="hm-transcript-header-row hm-transcript-header-row--top">
+              <div className="hm-panel-titleRow hm-transcript-header-title">
+                <h2 className="hm-panel-title">Transcript</h2>
+                <span className="hm-panel-count">
+                  {segments.length} segments
+                </span>
+              </div>
+              <div className="hm-transcript-header-topActions">
+                <button
+                  type="button"
+                  className="hm-transcript-open-link"
+                  onClick={onViewTranscript}
+                  disabled={segments.length === 0}
+                >
+                  Open full view
+                </button>
+                <span className="hm-transcript-pill">
+                  {transcriptStatusPill}
+                </span>
+              </div>
+            </div>
                 <div className="hm-transcript-header-row hm-transcript-header-row--bottom">
                   <label className="hm-transcript-model">
                     <span>Model</span>
@@ -1994,15 +2012,13 @@ export function EditorPage({
                         ))}
                       </select>
                     </label>
-                    <button
-                      className="hm-button hm-button--compact"
-                      onClick={handleGenerateShorts}
-                      disabled={shortsStatus === "loading" || shortsBlocked}
-                    >
-                      {shortsStatus === "loading"
-                        ? "Generating..."
-                        : "Generate"}
-                    </button>
+                <button
+                  className="hm-button hm-button--compact"
+                  onClick={handleGenerateShorts}
+                  disabled={shortsStatus === "loading" || shortsBlocked}
+                >
+                  {shortsButtonLabel}
+                </button>
                     {shortSuggestions.length > 0 && (
                       <button
                         className="hm-button hm-button--ghost hm-button--compact"

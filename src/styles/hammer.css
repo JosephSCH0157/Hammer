@@ -756,6 +756,28 @@ textarea:focus {
   gap: 6px;
 }
 
+.hm-transcript-header-topActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hm-transcript-open-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  color: var(--forge-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.hm-transcript-open-link:disabled {
+  color: var(--forge-muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+
 .hm-transcript-header-row-actions {
   display: flex;
   align-items: center;
@@ -783,6 +805,77 @@ textarea:focus {
   min-height: 0;
   overflow: auto;
   flex: 1;
+}
+
+.hm-transcript-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--forge-bg);
+}
+
+.hm-transcript-pageHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--forge-border);
+  background: var(--forge-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.hm-transcript-pageHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hm-transcript-pageHeaderTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hm-transcript-pageTitle {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.hm-transcript-pageCount {
+  font-size: 12px;
+  color: var(--forge-muted);
+}
+
+.hm-transcript-pageSearch {
+  flex: 1;
+  min-width: 220px;
+}
+
+.hm-transcript-pageSearch input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--forge-border);
+  background: var(--forge-panel-2);
+  color: var(--forge-text);
+}
+
+.hm-transcript-pageSearchHint {
+  font-size: 12px;
+  color: var(--forge-muted);
+}
+
+.hm-transcript-pageBody {
+  flex: 1;
+  padding: 12px 20px 20px;
+  min-height: 0;
+  overflow: auto;
+  background: var(--forge-panel-2);
 }
 
 .hm-assetbinActions {
