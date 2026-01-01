@@ -62,7 +62,18 @@ let pipelinePromise: Promise<ASRPipeline> | null = null;
 let pipelineModel: string | null = null;
 let lastCached = false;
 let lastDevice: "webgpu" | "wasm" = "wasm";
-const DEFAULT_MODEL = "openai/whisper-base.en";
+const CANONICAL_MODEL = "Xenova/whisper-base.en";
+const MODEL_ALIASES: Record<string, string> = {
+  "openai/whisper-base.en": CANONICAL_MODEL,
+};
+
+const normalizeModelId = (model?: string): string => {
+  const candidate = model?.trim() ?? "";
+  if (!candidate) {
+    return CANONICAL_MODEL;
+  }
+  return MODEL_ALIASES[candidate] ?? candidate;
+};
 
 const resolveDevice = (): "webgpu" | "wasm" => {
   const nav = ctx.navigator as Navigator | undefined;
@@ -131,7 +142,7 @@ const getPipeline = async (
   cached: boolean;
   device: "webgpu" | "wasm";
 }> => {
-  const normalizedModel = model?.trim() || DEFAULT_MODEL;
+  const normalizedModel = normalizeModelId(model);
   if (pipelinePromise && pipelineModel === normalizedModel) {
     return {
       pipe: await pipelinePromise,

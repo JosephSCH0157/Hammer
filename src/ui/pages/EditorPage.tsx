@@ -275,7 +275,7 @@ export function EditorPage({
   const [asrError, setAsrError] = useState<string | null>(null);
   const [asrCached, setAsrCached] = useState(false);
   const [asrDevice, setAsrDevice] = useState<"webgpu" | "wasm" | null>(null);
-  const [asrModel, setAsrModel] = useState("openai/whisper-base.en");
+  const [asrModel, setAsrModel] = useState("Xenova/whisper-base.en");
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
   const [markInMs, setMarkInMs] = useState<number | null>(null);
   const [markOutMs, setMarkOutMs] = useState<number | null>(null);
@@ -1886,8 +1886,8 @@ export function EditorPage({
                         onChange={(event) => setAsrModel(event.target.value)}
                         disabled={asrBusy}
                       >
-                        <option value="openai/whisper-base.en">
-                          openai/whisper-base.en
+                        <option value="Xenova/whisper-base.en">
+                          Xenova/whisper-base.en
                         </option>
                       </select>
                     </label>
