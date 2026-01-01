@@ -1849,20 +1849,20 @@ export function EditorPage({
               )}
             </>
           ) : activeRightTab === "transcript" ? (
-            <section className="hm-right-panel">
-              <div className="hm-panel-header">
-                <div className="hm-panel-titleRow">
-                  <h2 className="hm-panel-title">Transcript</h2>
-                  <span className="hm-panel-count">
-                    {segments.length} segments
-                  </span>
-                </div>
-                <div className="hm-transcript-controls">
-                  <div className="hm-transcript-status">
-                    <span className="hm-transcript-pill">
-                      {transcriptStatusPill}
+            <section className="hm-right-panel hm-right-panel--transcript">
+              <div className="hm-transcript-header">
+                <div className="hm-transcript-header-row hm-transcript-header-row--top">
+                  <div className="hm-panel-titleRow hm-transcript-header-title">
+                    <h2 className="hm-panel-title">Transcript</h2>
+                    <span className="hm-panel-count">
+                      {segments.length} segments
                     </span>
                   </div>
+                  <span className="hm-transcript-pill">
+                    {transcriptStatusPill}
+                  </span>
+                </div>
+                <div className="hm-transcript-header-row hm-transcript-header-row--bottom">
                   <label className="hm-transcript-model">
                     <span>Model</span>
                     <select
@@ -1875,16 +1875,17 @@ export function EditorPage({
                       </option>
                     </select>
                   </label>
-                  <div className="hm-panel-actions">
+                  <div className="hm-transcript-header-row-actions">
                     <button
-                      className="hm-button hm-button--ghost"
+                      type="button"
+                      className="hm-transcript-import-link"
                       onClick={handleImportTranscriptClick}
                       disabled={transcriptStatus === "loading"}
                     >
                       Import transcript
                     </button>
                     <button
-                      className="hm-button"
+                      className="hm-button hm-button--compact"
                       onClick={handleOfflineTranscribe}
                       disabled={transcriptStatus === "loading" || asrBusy}
                     >
