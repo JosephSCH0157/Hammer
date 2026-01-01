@@ -9,6 +9,7 @@ type WorkerRequest = {
 };
 
 type WorkerStatusPhase =
+  | "loading"
   | "downloading"
   | "decoding"
   | "transcribing"
@@ -160,6 +161,14 @@ const getPipeline = async (
   lastDevice = device;
   let sawDownload = false;
   pipelineModel = normalizedModel;
+  const initialDownloadStatus: WorkerStatusMessage = {
+    type: "status",
+    requestId,
+    phase: "downloading",
+    device,
+    progress: 0,
+  };
+  ctx.postMessage(initialDownloadStatus);
   const pipelineOptions = {
     device,
     progress_callback: (progress: ASRProgress) => {
@@ -209,14 +218,22 @@ ctx.addEventListener("message", async (event: MessageEvent<WorkerMessage>) => {
     return;
   }
   const { requestId, audio, sampleRate, model } = data;
-  const beginStatus: WorkerStatusMessage = {
+  const loadingStatus: WorkerStatusMessage = {
     type: "status",
     requestId,
-    phase: "downloading",
+    phase: "loading",
     progress: 0,
-    device: resolveDevice(),
   };
-  ctx.postMessage(beginStatus);
+  ctx.postMessage(loadingStatus);
+
+  let heartbeatTimer: number | null = null;
+  const stopTranscribingHeartbeat = () => {
+    if (heartbeatTimer !== null) {
+      ctx.clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  };
+
   try {
     const { pipe, cached, device } = await getPipeline(model, requestId);
     const decodingStatus: WorkerStatusMessage = {
@@ -238,12 +255,31 @@ ctx.addEventListener("message", async (event: MessageEvent<WorkerMessage>) => {
       progress: 0,
     };
     ctx.postMessage(transcribeStatus);
+
+    let syntheticProgress = 0;
+    const startTranscribingHeartbeat = () => {
+      heartbeatTimer = ctx.setInterval(() => {
+        syntheticProgress = Math.min(0.9, syntheticProgress + 0.05);
+        ctx.postMessage({
+          type: "status",
+          requestId,
+          phase: "transcribing",
+          cached,
+          device,
+          progress: syntheticProgress,
+        });
+      }, 900);
+    };
+    startTranscribingHeartbeat();
+
     const result = await pipe(audioData, {
       chunk_length_s: 30,
       stride_length_s: 5,
       return_timestamps: "segment",
       sampling_rate: sampleRate,
     });
+    stopTranscribingHeartbeat();
+
     const segments = extractSegments(result);
     const finalizingStatus: WorkerStatusMessage = {
       type: "status",
@@ -272,6 +308,7 @@ ctx.addEventListener("message", async (event: MessageEvent<WorkerMessage>) => {
     };
     ctx.postMessage(doneStatus);
   } catch (error) {
+    stopTranscribingHeartbeat();
     const errorMessage =
       error instanceof Error ? error.message : "Offline transcription failed.";
     const status: WorkerStatusMessage = {

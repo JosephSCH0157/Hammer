@@ -210,11 +210,11 @@ const ASR_STATUS_LABELS: Record<OfflineWhisperPhase, string> = {
 };
 
 const ASR_BUSY_MESSAGES: Partial<Record<OfflineWhisperPhase, string>> = {
-  loading: "Downloading model…",
-  downloading: "Downloading model…",
-  decoding: "Decoding audio…",
-  transcribing: "Transcribing…",
-  finalizing: "Finalizing transcript…",
+  loading: "Downloading model...",
+  downloading: "Downloading model...",
+  decoding: "Decoding audio...",
+  transcribing: "Transcribing...",
+  finalizing: "Finalizing transcript...",
 };
 
 const findActiveSegmentId = (
@@ -546,16 +546,18 @@ export function EditorPage({
     asrStatus === "idle"
       ? "Idle"
       : ASR_STATUS_LABELS[asrStatus as OfflineWhisperPhase];
-  const asrProgressLabel =
-    asrProgress !== null ? `${Math.round(asrProgress * 100)}%` : "";
   const hasPct =
     typeof asrProgress === "number" && Number.isFinite(asrProgress);
-  const rawPct = hasPct
-    ? asrProgress <= 1
-      ? asrProgress * 100
-      : asrProgress
+  const pct = hasPct
+    ? Math.max(
+        0,
+        Math.min(
+          100,
+          asrProgress <= 1 ? asrProgress * 100 : asrProgress,
+        ),
+      )
     : 0;
-  const pct = Math.max(0, Math.min(100, rawPct));
+  const asrProgressLabel = hasPct ? `${Math.round(pct)}%` : "";
   const busyMessage =
     ASR_BUSY_MESSAGES[asrStatus as OfflineWhisperPhase] ?? asrStatusLabel;
   const asrDeviceLabel = asrDevice
