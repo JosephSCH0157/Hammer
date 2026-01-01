@@ -183,12 +183,12 @@ const getPipeline = async (
       ) {
         ratio = progress.loaded / progress.total;
       }
-    const status: WorkerStatusMessage = {
-      type: "status",
-      requestId,
-      phase: "downloading",
-      device,
-    };
+      const status: WorkerStatusMessage = {
+        type: "status",
+        requestId,
+        phase: "downloading",
+        device,
+      };
       if (ratio !== null) {
         status.progress = Math.min(Math.max(ratio, 0), 1);
       }

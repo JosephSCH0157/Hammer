@@ -272,9 +272,9 @@ export function EditorPage({
     "idle" | "loading" | "error"
   >("idle");
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
-  const [asrStatus, setAsrStatus] = useState<
-    OfflineWhisperPhase | "idle"
-  >("idle");
+  const [asrStatus, setAsrStatus] = useState<OfflineWhisperPhase | "idle">(
+    "idle",
+  );
   const [asrProgress, setAsrProgress] = useState<number | null>(null);
   const [asrError, setAsrError] = useState<string | null>(null);
   const [asrCached, setAsrCached] = useState(false);
@@ -551,10 +551,7 @@ export function EditorPage({
   const pct = hasPct
     ? Math.max(
         0,
-        Math.min(
-          100,
-          asrProgress <= 1 ? asrProgress * 100 : asrProgress,
-        ),
+        Math.min(100, asrProgress <= 1 ? asrProgress * 100 : asrProgress),
       )
     : 0;
   const asrProgressLabel = hasPct ? `${Math.round(pct)}%` : "";
