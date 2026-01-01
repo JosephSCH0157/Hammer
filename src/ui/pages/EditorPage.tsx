@@ -187,34 +187,6 @@ const logCutPlan = (project: ProjectDoc): void => {
   console.warn("Render plan debug:", { cuts: plan.cuts, keptDurationMs });
 };
 
-const buildStubTranscript = (
-  durationMs: number,
-  sourceAssetId?: string,
-): TranscriptDoc => {
-  const script = [
-    { startMs: 0, text: "Intro and framing." },
-    { startMs: 10_000, text: "Point one." },
-    { startMs: 25_000, text: "Point two." },
-    { startMs: 40_000, text: "Key example." },
-    { startMs: 55_000, text: "First takeaway." },
-    { startMs: 70_000, text: "Second takeaway." },
-    { startMs: 85_000, text: "Closing summary." },
-  ];
-  const filtered = script.filter((segment) => segment.startMs < durationMs);
-  const segmentsSource = filtered.length > 0 ? filtered : script.slice(0, 1);
-  const segments = segmentsSource.map((segment, index) => {
-    const next = segmentsSource[index + 1];
-    const entry: TranscriptSegment = {
-      id: `stub_${index}_${segment.startMs}`,
-      startMs: segment.startMs,
-      endMs: next ? next.startMs : segment.startMs,
-      text: segment.text,
-    };
-    return entry;
-  });
-  return buildTranscriptDoc(segments, sourceAssetId);
-};
-
 const findActiveSegmentId = (
   segments: TranscriptSegment[],
   currentMs: number,
@@ -348,6 +320,17 @@ export function EditorPage({
     () => segments.some((segment) => segment.endMs > segment.startMs),
     [segments],
   );
+  const SHORTS_MIN_SEGMENTS = 30;
+  const SHORTS_MIN_TRANSCRIPT_DURATION_MS = 60_000;
+  const lastSegmentEndMs =
+    segments.length > 0 ? segments[segments.length - 1].endMs : 0;
+  const hasNonEmptySegments = segments.some(
+    (segment) => segment.text.trim().length > 0,
+  );
+  const hasUsableTranscriptForShorts =
+    segments.length >= SHORTS_MIN_SEGMENTS &&
+    lastSegmentEndMs > SHORTS_MIN_TRANSCRIPT_DURATION_MS &&
+    hasNonEmptySegments;
   const visibleAssets = useMemo(() => {
     const nameFor = (asset: Asset) => asset.displayName ?? asset.name;
     const compareName = (a: Asset, b: Asset) =>
@@ -545,8 +528,10 @@ export function EditorPage({
       ? "WebGPU"
       : "CPU"
     : "";
-  const shortsBlocked = !hasTimestampedTranscript;
-  const shortsBlockedMessage = shortsBlocked ? "Need VTT/SRT timestamps." : "";
+  const shortsBlocked = !hasUsableTranscriptForShorts;
+  const shortsBlockedMessage = shortsBlocked
+    ? "No usable transcript yet. Generate Offline Transcript first."
+    : "";
   const hasTranscript = segments.length > 0;
   const transcriptStatusPillParts = [asrStatusLabel];
   if (asrProgressLabel) {
@@ -563,7 +548,7 @@ export function EditorPage({
     .join(" • ");
   const transcriptGenerateLabel = hasTranscript
     ? "Regenerate"
-    : "Generate stub";
+    : "Generate transcript";
 
   useEffect(() => {
     let cancelled = false;
@@ -930,24 +915,6 @@ export function EditorPage({
     }
   };
 
-  const handleGenerateTranscript = async () => {
-    setTranscriptStatus("loading");
-    setTranscriptError(null);
-    try {
-      const transcript = buildStubTranscript(
-        project.source.durationMs,
-        project.source.asset.assetId,
-      );
-      await applyTranscript(transcript);
-      setTranscriptStatus("idle");
-    } catch (error) {
-      setTranscriptStatus("error");
-      setTranscriptError(
-        error instanceof Error ? error.message : "Unable to save transcript.",
-      );
-    }
-  };
-
   const handleSegmentClick = (segment: TranscriptSegment) => {
     const video = videoRef.current;
     if (!video) {
@@ -1006,10 +973,13 @@ export function EditorPage({
     if (asrBusy) {
       return;
     }
+    setTranscriptStatus("loading");
+    setTranscriptError(null);
     setAsrStatus("loading-model");
     setAsrProgress(0);
     setAsrError(null);
     try {
+      await applyTranscript(null);
       const blob = await storage.getAsset(project.source.asset.assetId);
       const pcm = await decodeMediaToPcm(blob, 16_000);
       const client = getAsrClient();
@@ -1020,7 +990,12 @@ export function EditorPage({
         updateAsrStatus,
       );
       const transcript = buildTranscriptFromAsr(result);
+      if (transcript.segments.length === 0) {
+        throw new Error("Offline transcription returned no segments.");
+      }
       await applyTranscript(transcript);
+      setTranscriptStatus("idle");
+      setTranscriptError(null);
       setAsrStatus("done");
       setAsrError(null);
       if (result.cached) {
@@ -1030,6 +1005,10 @@ export function EditorPage({
         setAsrDevice(result.device);
       }
     } catch (error) {
+      setTranscriptStatus("error");
+      setTranscriptError(
+        error instanceof Error ? error.message : "Offline transcription failed.",
+      );
       setAsrStatus("error");
       setAsrError(
         error instanceof Error
@@ -1056,7 +1035,10 @@ export function EditorPage({
 
   const handleGenerateShorts = () => {
     if (!project.transcript || shortsBlocked) {
-      setShortsError("Need VTT/SRT timestamps.");
+      setShortsError(
+        shortsBlockedMessage ||
+          "No usable transcript yet. Generate Offline Transcript first.",
+      );
       setShortSuggestions([]);
       return;
     }
@@ -1876,33 +1858,24 @@ export function EditorPage({
                     {segments.length} segments
                   </span>
                 </div>
-                <div className="hm-transcript-header">
+                <div className="hm-transcript-controls">
                   <div className="hm-transcript-status">
                     <span className="hm-transcript-pill">
                       {transcriptStatusPill}
                     </span>
                   </div>
-                  <div className="hm-transcript-offline-row">
-                    <label className="hm-transcript-model">
-                      <span>Model</span>
-                      <select
-                        value={asrModel}
-                        onChange={(event) => setAsrModel(event.target.value)}
-                        disabled={asrBusy}
-                      >
-                        <option value="Xenova/whisper-base.en">
-                          Xenova/whisper-base.en
-                        </option>
-                      </select>
-                    </label>
-                    <button
-                      className="hm-button hm-button--compact"
-                      onClick={handleOfflineTranscribe}
+                  <label className="hm-transcript-model">
+                    <span>Model</span>
+                    <select
+                      value={asrModel}
+                      onChange={(event) => setAsrModel(event.target.value)}
                       disabled={asrBusy}
                     >
-                      Generate Transcript (Offline)
-                    </button>
-                  </div>
+                      <option value="Xenova/whisper-base.en">
+                        Xenova/whisper-base.en
+                      </option>
+                    </select>
+                  </label>
                   <div className="hm-panel-actions">
                     <button
                       className="hm-button hm-button--ghost"
@@ -1913,8 +1886,8 @@ export function EditorPage({
                     </button>
                     <button
                       className="hm-button"
-                      onClick={handleGenerateTranscript}
-                      disabled={transcriptStatus === "loading"}
+                      onClick={handleOfflineTranscribe}
+                      disabled={transcriptStatus === "loading" || asrBusy}
                     >
                       {transcriptGenerateLabel}
                     </button>
@@ -1946,7 +1919,7 @@ export function EditorPage({
                 {segments.length === 0 ? (
                   <div className="hm-transcript-empty">
                     <p className="muted stacked-gap-lg">
-                      No transcript yet. Generate a stub to wire up interaction.
+                      No transcript yet. Generate an offline transcript to get started.
                     </p>
                   </div>
                 ) : (
