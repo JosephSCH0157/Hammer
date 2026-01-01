@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MouseEvent } from "react";
 import type {
   Asset,
@@ -30,9 +30,6 @@ import { exportFull } from "../../features/export/exportFull";
 import {
   generateShortSuggestions,
   isTranscriptValidForShorts,
-  SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS,
-  SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS,
-  SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS,
 } from "../../features/shorts/shortsEngine";
 import {
   buildTranscriptDoc,
@@ -255,7 +252,11 @@ export function EditorPage({
   const [asrError, setAsrError] = useState<string | null>(null);
   const [asrCached, setAsrCached] = useState(false);
   const [asrDevice, setAsrDevice] = useState<"webgpu" | "wasm" | null>(null);
-  const [asrModel, setAsrModel] = useState("Xenova/whisper-base.en");
+  const asrModel = "Xenova/whisper-base.en";
+  const [transcriptionCanceledThisSession, setTranscriptionCanceledThisSession] =
+    useState(false);
+  const transcriptionCancelledRef = useRef(false);
+  const autoTranscribedProjectsRef = useRef<Set<string>>(new Set());
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
   const [markInMs, setMarkInMs] = useState<number | null>(null);
   const [markOutMs, setMarkOutMs] = useState<number | null>(null);
@@ -323,16 +324,14 @@ export function EditorPage({
   );
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
+  const sourceAssetId = project.source.asset.assetId;
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
   const isTranscriptValid = Boolean(
     project.transcript && isTranscriptValidForShorts(project.transcript),
   );
   const shortsBlocked = !isTranscriptValid;
-  const minTranscriptSeconds = Math.round(
-    SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS / 1000,
-  );
   const shortsBlockedMessage = shortsBlocked
-    ? `Shorts need a transcript with at least ${SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS} segments, ${minTranscriptSeconds}s of coverage, and ${SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS} text lines. Generate or import one to continue.`
+    ? "Generate an offline transcript first."
     : "";
   const visibleAssets = useMemo(() => {
     const nameFor = (asset: Asset) => asset.displayName ?? asset.name;
@@ -512,6 +511,8 @@ export function EditorPage({
     ? `codecs: ${exportResult.videoCodec}${exportResult.audioCodec ? `/${exportResult.audioCodec}` : ""}`
     : "";
   const asrBusy = asrStatus === "loading-model" || asrStatus === "transcribing";
+  const showCancelButton =
+    asrStatus === "loading-model" || asrStatus === "transcribing";
   const asrStatusLabel =
     asrStatus === "idle"
       ? "Idle"
@@ -523,13 +524,11 @@ export function EditorPage({
             ? "Done"
             : "Error";
   const asrProgressLabel =
-    asrProgress !== null && asrStatus === "loading-model"
-      ? `${Math.round(asrProgress * 100)}%`
-      : "";
+    asrProgress !== null ? `${Math.round(asrProgress * 100)}%` : "";
   const asrDeviceLabel = asrDevice
     ? asrDevice === "webgpu"
-      ? "WebGPU"
-      : "CPU"
+      ? "GPU"
+      : "WASM"
     : "";
   const hasTranscript = segments.length > 0;
   const transcriptStatusPillParts = [asrStatusLabel];
@@ -745,6 +744,32 @@ export function EditorPage({
     };
   }, []);
 
+  useEffect(() => {
+    if (
+      autoTranscribedProjectsRef.current.has(project.projectId) ||
+      transcriptionCanceledThisSession ||
+      isTranscriptValid ||
+      asrBusy ||
+      !sourceAssetId
+    ) {
+      return;
+    }
+    autoTranscribedProjectsRef.current.add(project.projectId);
+    void handleOfflineTranscribe();
+  }, [
+    asrBusy,
+    handleOfflineTranscribe,
+    isTranscriptValid,
+    project.projectId,
+    sourceAssetId,
+    transcriptionCanceledThisSession,
+  ]);
+
+  useEffect(() => {
+    transcriptionCancelledRef.current = false;
+    setTranscriptionCanceledThisSession(false);
+  }, [project.projectId]);
+
   const handleTogglePlay = async () => {
     const video = videoRef.current;
     if (!video || !canTransport) {
@@ -890,11 +915,14 @@ export function EditorPage({
     return buildTranscriptDoc(segments, project.source.asset.assetId);
   };
 
-  const applyTranscript = async (transcript?: TranscriptDoc) => {
-    await storage.setTranscript(project.projectId, transcript);
-    const refreshed = await storage.loadProject(project.projectId);
-    onProjectUpdated(refreshed);
-  };
+  const applyTranscript = useCallback(
+    async (transcript?: TranscriptDoc) => {
+      await storage.setTranscript(project.projectId, transcript);
+      const refreshed = await storage.loadProject(project.projectId);
+      onProjectUpdated(refreshed);
+    },
+    [onProjectUpdated, project.projectId, storage],
+  );
 
   const handleImportTranscriptChange = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -940,11 +968,9 @@ export function EditorPage({
 
   const updateAsrStatus = (status: OfflineWhisperStatus) => {
     setAsrStatus(status.phase);
-    if (status.phase === "loading-model") {
-      setAsrProgress(status.progress ?? null);
-    } else {
-      setAsrProgress(null);
-    }
+    setAsrProgress(
+      typeof status.progress === "number" ? status.progress : null,
+    );
     if (typeof status.cached === "boolean") {
       setAsrCached(status.cached);
     }
@@ -974,10 +1000,11 @@ export function EditorPage({
     return buildTranscriptDoc(segments, project.source.asset.assetId, "en");
   };
 
-  const handleOfflineTranscribe = async () => {
+  const handleOfflineTranscribe = useCallback(async () => {
     if (asrBusy) {
       return;
     }
+    transcriptionCancelledRef.current = false;
     setTranscriptStatus("loading");
     setTranscriptError(null);
     setAsrStatus("loading-model");
@@ -985,7 +1012,7 @@ export function EditorPage({
     setAsrError(null);
     try {
       await applyTranscript();
-      const blob = await storage.getAsset(project.source.asset.assetId);
+      const blob = await storage.getAsset(sourceAssetId);
       const pcm = await decodeMediaToPcm(blob, 16_000);
       const client = getAsrClient();
       const result = await client.transcribe(
@@ -1010,19 +1037,42 @@ export function EditorPage({
         setAsrDevice(result.device);
       }
     } catch (error) {
+      if (transcriptionCancelledRef.current) {
+        transcriptionCancelledRef.current = false;
+        setTranscriptStatus("idle");
+        setTranscriptError(null);
+        setAsrStatus("idle");
+        setAsrError("Offline transcription canceled.");
+        return;
+      }
+      const message =
+        error instanceof Error ? error.message : "Offline transcription failed.";
       setTranscriptStatus("error");
-      setTranscriptError(
-        error instanceof Error
-          ? error.message
-          : "Offline transcription failed.",
-      );
+      setTranscriptError(message);
       setAsrStatus("error");
-      setAsrError(
-        error instanceof Error
-          ? error.message
-          : "Offline transcription failed.",
-      );
+      setAsrError(message);
     }
+  }, [
+    applyTranscript,
+    asrBusy,
+    asrModel,
+    sourceAssetId,
+    storage,
+    updateAsrStatus,
+  ]);
+
+  const handleCancelTranscription = () => {
+    if (asrStatus !== "loading-model" && asrStatus !== "transcribing") {
+      return;
+    }
+    transcriptionCancelledRef.current = true;
+    setTranscriptionCanceledThisSession(true);
+    asrClientRef.current?.terminate();
+    setAsrProgress(null);
+    setTranscriptStatus("idle");
+    setTranscriptError(null);
+    setAsrStatus("idle");
+    setAsrError("Offline transcription canceled.");
   };
 
   const buildShortLabel = (title: string) => {
@@ -1859,40 +1909,31 @@ export function EditorPage({
           ) : activeRightTab === "transcript" ? (
             <section className="hm-right-panel hm-right-panel--transcript">
               <div className="hm-transcript-header">
-            <div className="hm-transcript-header-row hm-transcript-header-row--top">
-              <div className="hm-panel-titleRow hm-transcript-header-title">
-                <h2 className="hm-panel-title">Transcript</h2>
-                <span className="hm-panel-count">
-                  {segments.length} segments
-                </span>
-              </div>
-              <div className="hm-transcript-header-topActions">
-                <button
-                  type="button"
-                  className="hm-transcript-open-link"
-                  onClick={onViewTranscript}
-                  disabled={segments.length === 0}
-                >
-                  Open full view
-                </button>
-                <span className="hm-transcript-pill">
-                  {transcriptStatusPill}
-                </span>
-              </div>
-            </div>
-                <div className="hm-transcript-header-row hm-transcript-header-row--bottom">
-                  <label className="hm-transcript-model">
-                    <span>Model</span>
-                    <select
-                      value={asrModel}
-                      onChange={(event) => setAsrModel(event.target.value)}
-                      disabled={asrBusy}
+                <div className="hm-transcript-header-row hm-transcript-header-row--top">
+                  <div className="hm-panel-titleRow hm-transcript-header-title">
+                    <h2 className="hm-panel-title">Transcript</h2>
+                    <span className="hm-panel-count">
+                      {segments.length} segments
+                    </span>
+                  </div>
+                  <div className="hm-transcript-header-topActions">
+                    <button
+                      type="button"
+                      className="hm-transcript-open-link"
+                      onClick={onViewTranscript}
+                      disabled={segments.length === 0}
                     >
-                      <option value="Xenova/whisper-base.en">
-                        Xenova/whisper-base.en
-                      </option>
-                    </select>
-                  </label>
+                      Open full view
+                    </button>
+                    <span className="hm-transcript-pill">
+                      {transcriptStatusPill}
+                    </span>
+                  </div>
+                </div>
+                <div className="hm-transcript-header-row hm-transcript-header-row--bottom">
+                  <div className="hm-transcript-engineLabel">
+                    Engine: Offline (Whisper)
+                  </div>
                   <div className="hm-transcript-header-row-actions">
                     <button
                       type="button"
@@ -1909,20 +1950,29 @@ export function EditorPage({
                     >
                       {transcriptGenerateLabel}
                     </button>
+                    {showCancelButton && (
+                      <button
+                        type="button"
+                        className="hm-button hm-button--ghost hm-button--compact"
+                        onClick={handleCancelTranscription}
+                      >
+                        Cancel
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="hm-panel-body hm-transcript-body">
-                {asrStatus === "loading-model" && (
-                  <div className="hm-transcript-progress">
+                {asrProgress !== null && (
+                  <div className="hm-transcript-progress hm-transcript-progress--header">
                     <div
                       className="hm-transcript-progressFill"
                       style={{
-                        width: `${Math.round((asrProgress ?? 0) * 100)}%`,
+                        width: `${Math.round(Math.max(0, Math.min(1, asrProgress)) * 100)}%`,
                       }}
                     />
                   </div>
                 )}
+              </div>
+              <div className="hm-panel-body hm-transcript-body">
                 {asrError && (
                   <div className="hm-transcript-error">{asrError}</div>
                 )}

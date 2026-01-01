@@ -390,23 +390,6 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
-.hm-transcript-model {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--forge-muted);
-}
-
-.hm-transcript-model select {
-  background: var(--forge-panel-2);
-  border: 1px solid var(--forge-border);
-  border-radius: 8px;
-  padding: 4px 6px;
-  font-size: 11px;
-  color: var(--forge-text);
-}
-
 .hm-transcript-status {
   display: flex;
   align-items: center;
@@ -782,6 +765,16 @@ textarea:focus {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.hm-transcript-engineLabel {
+  font-size: 11px;
+  color: var(--forge-muted);
+}
+
+.hm-transcript-progress--header {
+  margin-top: 4px;
+  padding: 0 12px;
 }
 
 .hm-transcript-import-link {

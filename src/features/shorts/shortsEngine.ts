@@ -160,8 +160,6 @@ const normalizeSegments = (transcript: TranscriptDoc): TranscriptSegment[] => {
 
 export const SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS = 30;
 export const SHORTS_VALID_TRANSCRIPT_MIN_DURATION_MS = 60_000;
-export const SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS =
-  SHORTS_VALID_TRANSCRIPT_MIN_SEGMENTS;
 
 export const isTranscriptValidForShorts = (
   transcript: TranscriptDoc,
@@ -177,10 +175,14 @@ export const isTranscriptValidForShorts = (
   ) {
     return false;
   }
+  const totalSegments = transcript.segments.length;
+  if (totalSegments === 0) {
+    return false;
+  }
   const nonEmptyTextCount = transcript.segments.filter(
     (segment) => segment.text.trim().length > 0,
   ).length;
-  if (nonEmptyTextCount < SHORTS_VALID_TRANSCRIPT_MIN_NON_EMPTY_TEXTS) {
+  if (nonEmptyTextCount < Math.ceil(totalSegments / 2)) {
     return false;
   }
   return true;
