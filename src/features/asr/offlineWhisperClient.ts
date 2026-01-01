@@ -1,6 +1,9 @@
 export type OfflineWhisperPhase =
-  | "loading-model"
+  | "loading"
+  | "downloading"
+  | "decoding"
   | "transcribing"
+  | "finalizing"
   | "done"
   | "error";
 

@@ -191,6 +191,32 @@ const logCutPlan = (project: ProjectDoc): void => {
   console.warn("Render plan debug:", { cuts: plan.cuts, keptDurationMs });
 };
 
+const ASR_BUSY_PHASES: readonly OfflineWhisperPhase[] = [
+  "loading",
+  "downloading",
+  "decoding",
+  "transcribing",
+  "finalizing",
+];
+
+const ASR_STATUS_LABELS: Record<OfflineWhisperPhase, string> = {
+  loading: "Downloading model",
+  downloading: "Downloading model",
+  decoding: "Decoding audio",
+  transcribing: "Transcribing",
+  finalizing: "Finalizing transcript",
+  done: "Done",
+  error: "Error",
+};
+
+const ASR_BUSY_MESSAGES: Partial<Record<OfflineWhisperPhase, string>> = {
+  loading: "Downloading model…",
+  downloading: "Downloading model…",
+  decoding: "Decoding audio…",
+  transcribing: "Transcribing…",
+  finalizing: "Finalizing transcript…",
+};
+
 const findActiveSegmentId = (
   segments: TranscriptSegment[],
   currentMs: number,
@@ -247,7 +273,7 @@ export function EditorPage({
   >("idle");
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [asrStatus, setAsrStatus] = useState<
-    "idle" | "loading-model" | "transcribing" | "done" | "error"
+    OfflineWhisperPhase | "idle"
   >("idle");
   const [asrProgress, setAsrProgress] = useState<number | null>(null);
   const [asrError, setAsrError] = useState<string | null>(null);
@@ -513,21 +539,25 @@ export function EditorPage({
   const exportCodecLabel = exportResult?.videoCodec
     ? `codecs: ${exportResult.videoCodec}${exportResult.audioCodec ? `/${exportResult.audioCodec}` : ""}`
     : "";
-  const asrBusy = asrStatus === "loading-model" || asrStatus === "transcribing";
-  const showCancelButton =
-    asrStatus === "loading-model" || asrStatus === "transcribing";
+  const isBusy = ASR_BUSY_PHASES.includes(asrStatus as OfflineWhisperPhase);
+  const asrBusy = isBusy;
+  const showCancelButton = isBusy;
   const asrStatusLabel =
     asrStatus === "idle"
       ? "Idle"
-      : asrStatus === "loading-model"
-        ? "Downloading model"
-        : asrStatus === "transcribing"
-          ? "Transcribing"
-          : asrStatus === "done"
-            ? "Done"
-            : "Error";
+      : ASR_STATUS_LABELS[asrStatus as OfflineWhisperPhase];
   const asrProgressLabel =
     asrProgress !== null ? `${Math.round(asrProgress * 100)}%` : "";
+  const hasPct =
+    typeof asrProgress === "number" && Number.isFinite(asrProgress);
+  const rawPct = hasPct
+    ? asrProgress <= 1
+      ? asrProgress * 100
+      : asrProgress
+    : 0;
+  const pct = Math.max(0, Math.min(100, rawPct));
+  const busyMessage =
+    ASR_BUSY_MESSAGES[asrStatus as OfflineWhisperPhase] ?? asrStatusLabel;
   const asrDeviceLabel = asrDevice
     ? asrDevice === "webgpu"
       ? "GPU"
@@ -990,7 +1020,7 @@ export function EditorPage({
     transcriptionCancelledRef.current = false;
     setTranscriptStatus("loading");
     setTranscriptError(null);
-    setAsrStatus("loading-model");
+    setAsrStatus("downloading");
     setAsrProgress(0);
     setAsrError(null);
     try {
@@ -1048,7 +1078,7 @@ export function EditorPage({
   ]);
 
   const handleCancelTranscription = () => {
-    if (asrStatus !== "loading-model" && asrStatus !== "transcribing") {
+    if (!isBusy) {
       return;
     }
     transcriptionCancelledRef.current = true;
@@ -1968,13 +1998,19 @@ export function EditorPage({
                     )}
                   </div>
                 </div>
-                {asrProgress !== null && (
-                  <div className="hm-transcript-progress hm-transcript-progress--header">
+                {isBusy && (
+                  <div className="hm-progressTrack hm-progressTrack--header">
                     <div
-                      className="hm-transcript-progressFill"
-                      style={{
-                        width: `${Math.round(Math.max(0, Math.min(1, asrProgress)) * 100)}%`,
-                      }}
+                      className={`hm-progressFill${
+                        hasPct ? "" : " isIndeterminate"
+                      }`}
+                      style={
+                        hasPct
+                          ? {
+                              width: `${Math.round(pct)}%`,
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 )}
@@ -1989,7 +2025,7 @@ export function EditorPage({
                   </p>
                 )}
                 {transcriptStatus === "loading" && (
-                  <p className="muted stacked-gap">Importing transcript...</p>
+                  <p className="muted stacked-gap">{busyMessage}</p>
                 )}
                 {segments.length === 0 ? (
                   <div className="hm-transcript-empty">

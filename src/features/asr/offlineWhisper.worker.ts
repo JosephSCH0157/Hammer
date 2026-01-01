@@ -8,7 +8,13 @@ type WorkerRequest = {
   model: string;
 };
 
-type WorkerStatusPhase = "loading-model" | "transcribing" | "done" | "error";
+type WorkerStatusPhase =
+  | "downloading"
+  | "decoding"
+  | "transcribing"
+  | "finalizing"
+  | "done"
+  | "error";
 
 type WorkerStatusMessage = {
   type: "status";
@@ -168,12 +174,12 @@ const getPipeline = async (
       ) {
         ratio = progress.loaded / progress.total;
       }
-      const status: WorkerStatusMessage = {
-        type: "status",
-        requestId,
-        phase: "loading-model",
-        device,
-      };
+    const status: WorkerStatusMessage = {
+      type: "status",
+      requestId,
+      phase: "downloading",
+      device,
+    };
       if (ratio !== null) {
         status.progress = Math.min(Math.max(ratio, 0), 1);
       }
@@ -206,30 +212,32 @@ ctx.addEventListener("message", async (event: MessageEvent<WorkerMessage>) => {
   const beginStatus: WorkerStatusMessage = {
     type: "status",
     requestId,
-    phase: "loading-model",
+    phase: "downloading",
     progress: 0,
     device: resolveDevice(),
   };
   ctx.postMessage(beginStatus);
   try {
     const { pipe, cached, device } = await getPipeline(model, requestId);
-    const readyStatus: WorkerStatusMessage = {
+    const decodingStatus: WorkerStatusMessage = {
       type: "status",
       requestId,
-      phase: "loading-model",
+      phase: "decoding",
       cached,
       device,
+      progress: 0,
     };
-    ctx.postMessage(readyStatus);
+    ctx.postMessage(decodingStatus);
+    const audioData = new Float32Array(audio);
     const transcribeStatus: WorkerStatusMessage = {
       type: "status",
       requestId,
       phase: "transcribing",
       cached,
       device,
+      progress: 0,
     };
     ctx.postMessage(transcribeStatus);
-    const audioData = new Float32Array(audio);
     const result = await pipe(audioData, {
       chunk_length_s: 30,
       stride_length_s: 5,
@@ -237,6 +245,15 @@ ctx.addEventListener("message", async (event: MessageEvent<WorkerMessage>) => {
       sampling_rate: sampleRate,
     });
     const segments = extractSegments(result);
+    const finalizingStatus: WorkerStatusMessage = {
+      type: "status",
+      requestId,
+      phase: "finalizing",
+      cached,
+      device,
+      progress: 0.95,
+    };
+    ctx.postMessage(finalizingStatus);
     const message: WorkerResultMessage = {
       type: "result",
       requestId,
@@ -251,6 +268,7 @@ ctx.addEventListener("message", async (event: MessageEvent<WorkerMessage>) => {
       phase: "done",
       cached,
       device,
+      progress: 1,
     };
     ctx.postMessage(doneStatus);
   } catch (error) {
