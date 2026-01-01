@@ -316,14 +316,11 @@ export function EditorPage({
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
-  const hasTimestampedTranscript = useMemo(
-    () => segments.some((segment) => segment.endMs > segment.startMs),
-    [segments],
-  );
   const SHORTS_MIN_SEGMENTS = 30;
   const SHORTS_MIN_TRANSCRIPT_DURATION_MS = 60_000;
-  const lastSegmentEndMs =
-    segments.length > 0 ? segments[segments.length - 1].endMs : 0;
+  const lastSegment =
+    segments.length > 0 ? segments[segments.length - 1] : undefined;
+  const lastSegmentEndMs = lastSegment ? lastSegment.endMs : 0;
   const hasNonEmptySegments = segments.some(
     (segment) => segment.text.trim().length > 0,
   );
@@ -979,7 +976,7 @@ export function EditorPage({
     setAsrProgress(0);
     setAsrError(null);
     try {
-      await applyTranscript(null);
+      await applyTranscript();
       const blob = await storage.getAsset(project.source.asset.assetId);
       const pcm = await decodeMediaToPcm(blob, 16_000);
       const client = getAsrClient();
