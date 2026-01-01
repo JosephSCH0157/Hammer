@@ -2,9 +2,10 @@ import type { CutRangeMs, RenderPlan } from "../types/render";
 
 export const computeKeptRanges = (
   durationMs: number,
-  normalizedCuts: CutRangeMs[]
+  normalizedCuts: CutRangeMs[],
 ): CutRangeMs[] => {
-  const maxDuration = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0;
+  const maxDuration =
+    Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0;
   if (maxDuration === 0) {
     return [];
   }
@@ -31,7 +32,10 @@ export const computeKeptRangesForPlan = (plan: RenderPlan): CutRangeMs[] => {
     if (!clip) {
       return [];
     }
-    const maxDuration = Number.isFinite(plan.sourceDurationMs) && plan.sourceDurationMs > 0 ? plan.sourceDurationMs : 0;
+    const maxDuration =
+      Number.isFinite(plan.sourceDurationMs) && plan.sourceDurationMs > 0
+        ? plan.sourceDurationMs
+        : 0;
     if (maxDuration === 0) {
       return [];
     }
@@ -50,7 +54,7 @@ export const computeKeptDurationFromRanges = (ranges: CutRangeMs[]): number =>
 
 export const mapSourceMsToKeptMs = (
   sourceMs: number,
-  keptRanges: CutRangeMs[]
+  keptRanges: CutRangeMs[],
 ): number | null => {
   if (!Number.isFinite(sourceMs) || sourceMs < 0) {
     return null;
@@ -70,7 +74,7 @@ export const mapSourceMsToKeptMs = (
 
 export const mapKeptMsToSourceMs = (
   keptMs: number,
-  keptRanges: CutRangeMs[]
+  keptRanges: CutRangeMs[],
 ): number | null => {
   if (!Number.isFinite(keptMs) || keptMs < 0) {
     return null;

@@ -11,7 +11,12 @@ import type {
   TranscriptDoc,
   TranscriptSegment,
 } from "../../core/types/project";
-import type { ExportContainer, ExportRequest, ExportResult, RenderPlan } from "../../core/types/render";
+import type {
+  ExportContainer,
+  ExportRequest,
+  ExportResult,
+  RenderPlan,
+} from "../../core/types/render";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { computeKeptDurationMs, normalizeCuts } from "../../core/time/ranges";
 import { computeKeptRanges } from "../../core/time/keptRanges";
@@ -61,7 +66,7 @@ const SHORT_PRESET_OPTIONS: Array<{ id: ShortLengthPreset; label: string }> = [
 const waitForMediaEvent = (
   video: HTMLVideoElement,
   eventName: keyof HTMLMediaElementEventMap,
-  errorMessage: string
+  errorMessage: string,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     const handleEvent = () => {
@@ -84,10 +89,17 @@ const ensureMetadata = async (video: HTMLVideoElement): Promise<void> => {
   if (video.readyState >= 1) {
     return;
   }
-  await waitForMediaEvent(video, "loadedmetadata", "Thumbnail metadata failed to load");
+  await waitForMediaEvent(
+    video,
+    "loadedmetadata",
+    "Thumbnail metadata failed to load",
+  );
 };
 
-const captureThumbnail = async (video: HTMLVideoElement, tMs: number): Promise<string> => {
+const captureThumbnail = async (
+  video: HTMLVideoElement,
+  tMs: number,
+): Promise<string> => {
   await ensureMetadata(video);
   const targetSeconds = Math.max(0, tMs / 1000);
   if (Math.abs(video.currentTime - targetSeconds) > 0.01) {
@@ -96,7 +108,10 @@ const captureThumbnail = async (video: HTMLVideoElement, tMs: number): Promise<s
     await seeked;
   }
   const width = 160;
-  const aspect = video.videoWidth > 0 && video.videoHeight > 0 ? video.videoWidth / video.videoHeight : 16 / 9;
+  const aspect =
+    video.videoWidth > 0 && video.videoHeight > 0
+      ? video.videoWidth / video.videoHeight
+      : 16 / 9;
   const height = Math.max(1, Math.round(width / aspect));
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -143,7 +158,9 @@ const createId = (): string => {
 
 const buildRenderPlan = (project: ProjectDoc): RenderPlan => {
   const durationMs = project.source.durationMs;
-  const cutRanges = project.edl?.cuts?.map((cut) => ({ inMs: cut.inMs, outMs: cut.outMs })) ?? [];
+  const cutRanges =
+    project.edl?.cuts?.map((cut) => ({ inMs: cut.inMs, outMs: cut.outMs })) ??
+    [];
   const normalizedCuts = normalizeCuts(cutRanges, durationMs);
   return {
     sourceAssetId: project.source.asset.assetId,
@@ -163,11 +180,17 @@ const buildClipPlan = (project: ProjectDoc, cut: Cut): RenderPlan => ({
 
 const logCutPlan = (project: ProjectDoc): void => {
   const plan = buildRenderPlan(project);
-  const keptDurationMs = computeKeptDurationMs(plan.sourceDurationMs, plan.cuts);
+  const keptDurationMs = computeKeptDurationMs(
+    plan.sourceDurationMs,
+    plan.cuts,
+  );
   console.warn("Render plan debug:", { cuts: plan.cuts, keptDurationMs });
 };
 
-const buildStubTranscript = (durationMs: number, sourceAssetId?: string): TranscriptDoc => {
+const buildStubTranscript = (
+  durationMs: number,
+  sourceAssetId?: string,
+): TranscriptDoc => {
   const script = [
     { startMs: 0, text: "Intro and framing." },
     { startMs: 10_000, text: "Point one." },
@@ -192,7 +215,10 @@ const buildStubTranscript = (durationMs: number, sourceAssetId?: string): Transc
   return buildTranscriptDoc(segments, sourceAssetId);
 };
 
-const findActiveSegmentId = (segments: TranscriptSegment[], currentMs: number): string | null => {
+const findActiveSegmentId = (
+  segments: TranscriptSegment[],
+  currentMs: number,
+): string | null => {
   if (segments.length === 0) {
     return null;
   }
@@ -203,7 +229,9 @@ const findActiveSegmentId = (segments: TranscriptSegment[], currentMs: number): 
     }
     const nextStartMs = segments[index + 1]?.startMs;
     const endMs =
-      segment.endMs > segment.startMs ? segment.endMs : nextStartMs ?? Number.POSITIVE_INFINITY;
+      segment.endMs > segment.startMs
+        ? segment.endMs
+        : (nextStartMs ?? Number.POSITIVE_INFINITY);
     if (currentMs >= segment.startMs && currentMs < endMs) {
       return segment.id;
     }
@@ -218,14 +246,27 @@ type Props = {
   onBack: () => void;
 };
 
-export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props) {
+export function EditorPage({
+  project,
+  storage,
+  onProjectUpdated,
+  onBack,
+}: Props) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [assetStatus, setAssetStatus] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
   const [assetError, setAssetError] = useState<string | null>(null);
-  const [relinkStatus, setRelinkStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [relinkStatus, setRelinkStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
   const [relinkError, setRelinkError] = useState<string | null>(null);
-  const [lastRelinkFilename, setLastRelinkFilename] = useState<string | null>(null);
-  const [transcriptStatus, setTranscriptStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [lastRelinkFilename, setLastRelinkFilename] = useState<string | null>(
+    null,
+  );
+  const [transcriptStatus, setTranscriptStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [asrStatus, setAsrStatus] = useState<
     "idle" | "loading-model" | "transcribing" | "done" | "error"
@@ -238,7 +279,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
   const [markInMs, setMarkInMs] = useState<number | null>(null);
   const [markOutMs, setMarkOutMs] = useState<number | null>(null);
-  const [cutStatus, setCutStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [cutStatus, setCutStatus] = useState<"idle" | "loading" | "error">(
+    "idle",
+  );
   const [cutError, setCutError] = useState<string | null>(null);
   const [selectedCutId, setSelectedCutId] = useState<string | null>(null);
   const [stopAtMs, setStopAtMs] = useState<number | null>(null);
@@ -248,26 +291,36 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const [scrollLeft, setScrollLeft] = useState(0);
   const [viewportW, setViewportW] = useState(0);
   const [thumbVersion, setThumbVersion] = useState(0);
-  const [exportContainer, setExportContainer] = useState<ExportContainer>("webm");
+  const [exportContainer, setExportContainer] =
+    useState<ExportContainer>("webm");
   const [exportIncludeAudio, setExportIncludeAudio] = useState(true);
   const [exportStatus, setExportStatus] = useState<
     "idle" | "preparing" | "encoding" | "saving" | "done" | "error"
   >("idle");
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
-  const [lastExportRequest, setLastExportRequest] = useState<ExportRequest | null>(null);
+  const [lastExportRequest, setLastExportRequest] =
+    useState<ExportRequest | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [assetActionError, setAssetActionError] = useState<string | null>(null);
   const [assetFilter, setAssetFilter] = useState<"all" | Asset["kind"]>("all");
-  const [assetSort, setAssetSort] = useState<"newest" | "name" | "type">("newest");
+  const [assetSort, setAssetSort] = useState<"newest" | "name" | "type">(
+    "newest",
+  );
   const [activeLeftTab, setActiveLeftTab] = useState<
     "transcript" | "retakes" | "shorts" | "captions" | "assets" | "templates"
   >("transcript");
-  const [activeRightTab, setActiveRightTab] = useState<"assets" | "transcript" | "shorts">("assets");
+  const [activeRightTab, setActiveRightTab] = useState<
+    "assets" | "transcript" | "shorts"
+  >("assets");
   const [shortIntent, setShortIntent] = useState<ShortIntent>("teaser_funnel");
   const [shortPreset, setShortPreset] = useState<ShortLengthPreset>("default");
-  const [shortSuggestions, setShortSuggestions] = useState<ShortSuggestion[]>([]);
-  const [shortsStatus, setShortsStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [shortSuggestions, setShortSuggestions] = useState<ShortSuggestion[]>(
+    [],
+  );
+  const [shortsStatus, setShortsStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
   const [shortsError, setShortsError] = useState<string | null>(null);
   const showRetry = import.meta.env.DEV;
   const relinkInputRef = useRef<HTMLInputElement | null>(null);
@@ -281,22 +334,31 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   const thumbBusyRef = useRef(false);
   const assetPreviewMapRef = useRef<Map<string, string>>(new Map());
   const previewTimerRef = useRef<number | null>(null);
-  const asrClientRef = useRef<ReturnType<typeof createOfflineWhisperClient> | null>(null);
-  const segments = useMemo(() => project.transcript?.segments ?? [], [project.transcript]);
+  const asrClientRef = useRef<ReturnType<
+    typeof createOfflineWhisperClient
+  > | null>(null);
+  const segments = useMemo(
+    () => project.transcript?.segments ?? [],
+    [project.transcript],
+  );
   const cuts = useMemo(() => project.edl?.cuts ?? [], [project.edl]);
   const splits = useMemo(() => project.splits ?? [], [project.splits]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
   const hasTimestampedTranscript = useMemo(
     () => segments.some((segment) => segment.endMs > segment.startMs),
-    [segments]
+    [segments],
   );
   const visibleAssets = useMemo(() => {
     const nameFor = (asset: Asset) => asset.displayName ?? asset.name;
-    const compareName = (a: Asset, b: Asset) => nameFor(a).localeCompare(nameFor(b));
-    const compareCreatedDesc = (a: Asset, b: Asset) => b.createdAt.localeCompare(a.createdAt);
+    const compareName = (a: Asset, b: Asset) =>
+      nameFor(a).localeCompare(nameFor(b));
+    const compareCreatedDesc = (a: Asset, b: Asset) =>
+      b.createdAt.localeCompare(a.createdAt);
     const compareKind = (a: Asset, b: Asset) => a.kind.localeCompare(b.kind);
     const filtered =
-      assetFilter === "all" ? assets : assets.filter((asset) => asset.kind === assetFilter);
+      assetFilter === "all"
+        ? assets
+        : assets.filter((asset) => asset.kind === assetFilter);
     const sorted = [...filtered];
     if (assetSort === "newest") {
       sorted.sort((a, b) => {
@@ -341,14 +403,17 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     }
     return sorted;
   }, [assets, assetFilter, assetSort]);
-  const selectedCut = selectedCutId ? cuts.find((cut) => cut.id === selectedCutId) ?? null : null;
+  const selectedCut = selectedCutId
+    ? (cuts.find((cut) => cut.id === selectedCutId) ?? null)
+    : null;
   const durationMs = project.source.durationMs;
   const normalizedCuts = normalizeCuts(
     cuts.map((cut) => ({ inMs: cut.inMs, outMs: cut.outMs })),
-    durationMs
+    durationMs,
   );
   const keptRanges = computeKeptRanges(durationMs, normalizedCuts);
-  const canRetry = showRetry || Boolean(assetError?.includes("IndexedDB open blocked"));
+  const canRetry =
+    showRetry || Boolean(assetError?.includes("IndexedDB open blocked"));
   const canTransport = Boolean(videoUrl) && assetStatus === "idle";
   const isCutValid =
     markInMs !== null &&
@@ -356,7 +421,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     markOutMs > markInMs &&
     markOutMs - markInMs >= MIN_CUT_DURATION_MS &&
     markOutMs <= project.source.durationMs;
-  const exportBusy = exportStatus === "preparing" || exportStatus === "encoding" || exportStatus === "saving";
+  const exportBusy =
+    exportStatus === "preparing" ||
+    exportStatus === "encoding" ||
+    exportStatus === "saving";
   const exportStatusLabel =
     exportStatus === "preparing"
       ? "Preparing..."
@@ -395,7 +463,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     includeAudio: exportIncludeAudio,
   };
   const canExportCut = Boolean(selectedCut) && !exportBusy;
-  const safeDurationMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0;
+  const safeDurationMs =
+    Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 0;
   const percentForMs = (ms: number): number => {
     if (safeDurationMs <= 0) {
       return 0;
@@ -419,11 +488,17 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       : undefined;
   const playheadStyle = { left: `${percentForMs(currentTimeMs)}%` };
   const hoverStyle =
-    timelineHoverMs !== null ? { left: `${percentForMs(timelineHoverMs)}%` } : undefined;
+    timelineHoverMs !== null
+      ? { left: `${percentForMs(timelineHoverMs)}%` }
+      : undefined;
   const timelineContentWidth =
-    safeDurationMs > 0 ? Math.max(viewportW, Math.ceil(safeDurationMs * TIMELINE_PX_PER_MS)) : viewportW;
-  const visibleStartMs = safeDurationMs > 0 ? scrollLeft / TIMELINE_PX_PER_MS : 0;
-  const visibleEndMs = safeDurationMs > 0 ? (scrollLeft + viewportW) / TIMELINE_PX_PER_MS : 0;
+    safeDurationMs > 0
+      ? Math.max(viewportW, Math.ceil(safeDurationMs * TIMELINE_PX_PER_MS))
+      : viewportW;
+  const visibleStartMs =
+    safeDurationMs > 0 ? scrollLeft / TIMELINE_PX_PER_MS : 0;
+  const visibleEndMs =
+    safeDurationMs > 0 ? (scrollLeft + viewportW) / TIMELINE_PX_PER_MS : 0;
   const thumbTimes = useMemo(() => {
     if (safeDurationMs <= 0 || viewportW <= 0) {
       return [];
@@ -570,7 +645,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   }, [cuts, selectedCutId]);
 
   useEffect(() => {
-    if (activeSegmentId && !segments.some((segment) => segment.id === activeSegmentId)) {
+    if (
+      activeSegmentId &&
+      !segments.some((segment) => segment.id === activeSegmentId)
+    ) {
       setActiveSegmentId(null);
     }
   }, [activeSegmentId, segments]);
@@ -673,10 +751,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     if (stopAtMs === null && keptRanges.length > 0) {
       const currentMs = video.currentTime * 1000;
       const currentRange = keptRanges.find(
-        (range) => currentMs >= range.inMs && currentMs < range.outMs
+        (range) => currentMs >= range.inMs && currentMs < range.outMs,
       );
       if (!currentRange) {
-        const nextRange = keptRanges.find((range) => currentMs < range.inMs) ?? keptRanges[0];
+        const nextRange =
+          keptRanges.find((range) => currentMs < range.inMs) ?? keptRanges[0];
         if (!nextRange) {
           return;
         }
@@ -714,7 +793,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       updatedMs = stopAtMs;
     } else if (stopAtMs === null && keptRanges.length > 0 && isPlaying) {
       const currentRange = keptRanges.find(
-        (range) => updatedMs >= range.inMs && updatedMs < range.outMs
+        (range) => updatedMs >= range.inMs && updatedMs < range.outMs,
       );
       if (!currentRange) {
         const nextRange = keptRanges.find((range) => updatedMs < range.inMs);
@@ -729,7 +808,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           video.pause();
         }
       } else if (updatedMs >= currentRange.outMs) {
-        const nextRange = keptRanges.find((range) => range.inMs >= currentRange.outMs);
+        const nextRange = keptRanges.find(
+          (range) => range.inMs >= currentRange.outMs,
+        );
         if (nextRange) {
           updatedMs = nextRange.inMs;
           video.currentTime = nextRange.inMs / 1000;
@@ -763,7 +844,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       setRelinkStatus("idle");
     } catch (error) {
       setRelinkStatus("error");
-      setRelinkError(error instanceof Error ? error.message : "Unable to relink source.");
+      setRelinkError(
+        error instanceof Error ? error.message : "Unable to relink source.",
+      );
     } finally {
       event.currentTarget.value = "";
     }
@@ -773,7 +856,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     importTranscriptRef.current?.click();
   };
 
-  const parseTranscriptFromText = (filename: string, text: string): TranscriptDoc => {
+  const parseTranscriptFromText = (
+    filename: string,
+    text: string,
+  ): TranscriptDoc => {
     const lower = filename.toLowerCase();
     let segments: TranscriptSegment[] = [];
     if (lower.endsWith(".vtt")) {
@@ -803,7 +889,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     onProjectUpdated(refreshed);
   };
 
-  const handleImportTranscriptChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImportTranscriptChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.currentTarget.files?.[0];
     if (!file) {
       return;
@@ -818,7 +906,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     } catch (error) {
       setTranscriptStatus("error");
       setTranscriptError(
-        error instanceof Error ? error.message : "Unable to import transcript."
+        error instanceof Error ? error.message : "Unable to import transcript.",
       );
     } finally {
       event.currentTarget.value = "";
@@ -831,13 +919,15 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     try {
       const transcript = buildStubTranscript(
         project.source.durationMs,
-        project.source.asset.assetId
+        project.source.asset.assetId,
       );
       await applyTranscript(transcript);
       setTranscriptStatus("idle");
     } catch (error) {
       setTranscriptStatus("error");
-      setTranscriptError(error instanceof Error ? error.message : "Unable to save transcript.");
+      setTranscriptError(
+        error instanceof Error ? error.message : "Unable to save transcript.",
+      );
     }
   };
 
@@ -877,7 +967,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     }
   };
 
-  const buildTranscriptFromAsr = (result: OfflineWhisperResult): TranscriptDoc => {
+  const buildTranscriptFromAsr = (
+    result: OfflineWhisperResult,
+  ): TranscriptDoc => {
     const segments = result.segments
       .map((segment, index) => {
         const text = segment.text.trim();
@@ -908,7 +1000,7 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         pcm.samples,
         pcm.sampleRate,
         { model: asrModel },
-        updateAsrStatus
+        updateAsrStatus,
       );
       const transcript = buildTranscriptFromAsr(result);
       await applyTranscript(transcript);
@@ -922,7 +1014,11 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       }
     } catch (error) {
       setAsrStatus("error");
-      setAsrError(error instanceof Error ? error.message : "Offline transcription failed.");
+      setAsrError(
+        error instanceof Error
+          ? error.message
+          : "Offline transcription failed.",
+      );
     }
   };
 
@@ -937,7 +1033,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
 
   const hasDuplicateShortCut = (inMs: number, outMs: number, list: Cut[]) =>
     list.some(
-      (cut) => Math.abs(cut.inMs - inMs) < 250 && Math.abs(cut.outMs - outMs) < 250
+      (cut) =>
+        Math.abs(cut.inMs - inMs) < 250 && Math.abs(cut.outMs - outMs) < 250,
     );
 
   const handleGenerateShorts = () => {
@@ -953,14 +1050,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         project.transcript,
         shortIntent,
         shortPreset,
-        20
+        20,
       );
       setShortSuggestions(suggestions);
       setShortsStatus("idle");
     } catch (error) {
       setShortsStatus("error");
       setShortsError(
-        error instanceof Error ? error.message : "Unable to generate suggestions."
+        error instanceof Error
+          ? error.message
+          : "Unable to generate suggestions.",
       );
     }
   };
@@ -991,7 +1090,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
   };
 
   const handleDismissSuggestion = (suggestionId: string) => {
-    setShortSuggestions((items) => items.filter((item) => item.id !== suggestionId));
+    setShortSuggestions((items) =>
+      items.filter((item) => item.id !== suggestionId),
+    );
   };
 
   const addCutsFromSuggestions = async (suggestions: ShortSuggestion[]) => {
@@ -1003,7 +1104,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     try {
       const nextCuts = [...cuts];
       suggestions.forEach((suggestion) => {
-        if (hasDuplicateShortCut(suggestion.startMs, suggestion.endMs, nextCuts)) {
+        if (
+          hasDuplicateShortCut(suggestion.startMs, suggestion.endMs, nextCuts)
+        ) {
           return;
         }
         nextCuts.push({
@@ -1022,7 +1125,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       setCutStatus("idle");
     } catch (error) {
       setCutStatus("error");
-      setCutError(error instanceof Error ? error.message : "Unable to save cut.");
+      setCutError(
+        error instanceof Error ? error.message : "Unable to save cut.",
+      );
     }
   };
 
@@ -1040,7 +1145,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     if (!video) {
       return;
     }
-    const clamped = safeDurationMs > 0 ? Math.min(Math.max(ms, 0), safeDurationMs) : ms;
+    const clamped =
+      safeDurationMs > 0 ? Math.min(Math.max(ms, 0), safeDurationMs) : ms;
     video.currentTime = clamped / 1000;
     setCurrentTimeMs(clamped);
     setActiveSegmentId(findActiveSegmentId(segments, clamped));
@@ -1107,7 +1213,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       setCutStatus("idle");
     } catch (error) {
       setCutStatus("error");
-      setCutError(error instanceof Error ? error.message : "Unable to save cut.");
+      setCutError(
+        error instanceof Error ? error.message : "Unable to save cut.",
+      );
     }
   };
 
@@ -1116,26 +1224,37 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       return;
     }
     const clamped = Math.min(Math.max(ms, 0), safeDurationMs);
-    if (splits.some((split) => Math.abs(split.tMs - clamped) <= SPLIT_DEDUPE_WINDOW_MS)) {
+    if (
+      splits.some(
+        (split) => Math.abs(split.tMs - clamped) <= SPLIT_DEDUPE_WINDOW_MS,
+      )
+    ) {
       return;
     }
     setCutStatus("loading");
     setCutError(null);
     try {
-      const nextSplits: Split[] = [...splits, { id: createId(), tMs: clamped, kind: "manual" }];
+      const nextSplits: Split[] = [
+        ...splits,
+        { id: createId(), tMs: clamped, kind: "manual" },
+      ];
       nextSplits.sort((a, b) => a.tMs - b.tMs);
       const updated = await storage.setSplits(project.projectId, nextSplits);
       onProjectUpdated(updated);
       setCutStatus("idle");
     } catch (error) {
       setCutStatus("error");
-      setCutError(error instanceof Error ? error.message : "Unable to save split.");
+      setCutError(
+        error instanceof Error ? error.message : "Unable to save split.",
+      );
     }
   };
 
   const handleAddCut = async () => {
     if (!isCutValid || markInMs === null || markOutMs === null) {
-      setCutError("Mark in/out needs at least 0.5s and must be within duration.");
+      setCutError(
+        "Mark in/out needs at least 0.5s and must be within duration.",
+      );
       return;
     }
     await addCutRange(markInMs, markOutMs);
@@ -1153,7 +1272,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       setCutStatus("idle");
     } catch (error) {
       setCutStatus("error");
-      setCutError(error instanceof Error ? error.message : "Unable to delete cut.");
+      setCutError(
+        error instanceof Error ? error.message : "Unable to delete cut.",
+      );
     }
   };
 
@@ -1212,7 +1333,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
       const updated = await storage.setAssets(project.projectId, nextAssets);
       onProjectUpdated(updated);
     } catch (error) {
-      setAssetActionError(error instanceof Error ? error.message : fallbackMessage);
+      setAssetActionError(
+        error instanceof Error ? error.message : fallbackMessage,
+      );
       throw error;
     }
   };
@@ -1221,7 +1344,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     importAssetsRef.current?.click();
   };
 
-  const handleImportAssetsChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImportAssetsChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
     const files = Array.from(event.currentTarget.files ?? []);
     if (files.length === 0) {
       return;
@@ -1308,11 +1433,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
     <div className="hm-editor">
       <div className="hm-topbar">
         <div className="hm-topbar-left">
-          <button className="hm-button hm-button--ghost hm-button--compact" onClick={onBack}>
+          <button
+            className="hm-button hm-button--ghost hm-button--compact"
+            onClick={onBack}
+          >
             Back
           </button>
           <div className="hm-title-block">
-            <div className="hm-project-title">{project.title ?? "Untitled project"}</div>
+            <div className="hm-project-title">
+              {project.title ?? "Untitled project"}
+            </div>
             <div className="hm-project-subtitle">{project.source.filename}</div>
           </div>
         </div>
@@ -1332,7 +1462,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               <span className="export-field-label">Format</span>
               <select
                 value={exportContainer}
-                onChange={(event) => setExportContainer(event.target.value as ExportContainer)}
+                onChange={(event) =>
+                  setExportContainer(event.target.value as ExportContainer)
+                }
                 disabled={exportBusy}
                 aria-label="Export format"
                 title="MP4 export is coming soon"
@@ -1348,11 +1480,17 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               <input
                 type="checkbox"
                 checked={exportIncludeAudio}
-                onChange={(event) => setExportIncludeAudio(event.target.checked)}
+                onChange={(event) =>
+                  setExportIncludeAudio(event.target.checked)
+                }
                 disabled={exportBusy}
               />
             </label>
-            <button className="hm-button hm-button--compact" onClick={handleExportFull} disabled={exportBusy}>
+            <button
+              className="hm-button hm-button--compact"
+              onClick={handleExportFull}
+              disabled={exportBusy}
+            >
               Export Full
             </button>
             <button
@@ -1363,7 +1501,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               Export Cut
             </button>
           </div>
-          {exportStatusLabel && <div className="hm-export-status">{exportStatusLabel}</div>}
+          {exportStatusLabel && (
+            <div className="hm-export-status">{exportStatusLabel}</div>
+          )}
         </div>
         <input
           id="relink-source-input"
@@ -1448,13 +1588,19 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             </div>
             <div className="hm-panel-body">
               <div className="cuts-marks">
-                <div>In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}</div>
-                <div>Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}</div>
+                <div>
+                  In: {markInMs !== null ? formatTimestamp(markInMs) : "-"}
+                </div>
+                <div>
+                  Out: {markOutMs !== null ? formatTimestamp(markOutMs) : "-"}
+                </div>
                 <div>Min: {formatDuration(MIN_CUT_DURATION_MS)}</div>
               </div>
               {cutError && <p className="stacked-gap">Cut error: {cutError}</p>}
               {cuts.length === 0 ? (
-                <p className="muted stacked-gap-lg">No cuts yet. Mark in/out and add one.</p>
+                <p className="muted stacked-gap-lg">
+                  No cuts yet. Mark in/out and add one.
+                </p>
               ) : (
                 <div className="cuts-list">
                   {cuts.map((cut) => (
@@ -1465,7 +1611,8 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                     >
                       <div className="cut-info">
                         <div className="cut-times">
-                          {formatTimestamp(cut.inMs)} - {formatTimestamp(cut.outMs)}
+                          {formatTimestamp(cut.inMs)} -{" "}
+                          {formatTimestamp(cut.outMs)}
                         </div>
                         <div className="cut-duration">
                           Duration: {formatDuration(cut.outMs - cut.inMs)}
@@ -1502,13 +1649,19 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
 
       <main className="hm-stage">
         <div className="hm-stage-inner">
-          {assetStatus === "loading" && <div className="hm-stage-card">Loading video...</div>}
+          {assetStatus === "loading" && (
+            <div className="hm-stage-card">Loading video...</div>
+          )}
           {assetStatus === "error" && (
             <div className="hm-stage-card">
               <p>{assetError ?? "Source media not found on this device."}</p>
-              <p className="muted stacked-gap">Stored source: {project.source.filename}</p>
+              <p className="muted stacked-gap">
+                Stored source: {project.source.filename}
+              </p>
               {lastRelinkFilename && (
-                <p className="muted stacked-gap">Selected file: {lastRelinkFilename}</p>
+                <p className="muted stacked-gap">
+                  Selected file: {lastRelinkFilename}
+                </p>
               )}
               <button
                 className="hm-button"
@@ -1520,7 +1673,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               {relinkStatus === "error" && (
                 <p className="stacked-gap">Re-link failed: {relinkError}</p>
               )}
-              {relinkStatus === "loading" && <p className="stacked-gap">Re-linking...</p>}
+              {relinkStatus === "loading" && (
+                <p className="stacked-gap">Re-linking...</p>
+              )}
               {canRetry && (
                 <button
                   className="hm-button hm-button--ghost"
@@ -1582,7 +1737,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
           </div>
           <div className="hm-assetbinActions">
             {activeRightTab === "assets" && (
-              <button className="hm-button hm-button--compact" onClick={handleImportAssetsClick}>
+              <button
+                className="hm-button hm-button--compact"
+                onClick={handleImportAssetsClick}
+              >
                 Import
               </button>
             )}
@@ -1591,30 +1749,36 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         <div className="hm-assetbinBody">
           {activeRightTab === "assets" ? (
             <>
-              {assetActionError && <div className="hm-asset-error">{assetActionError}</div>}
+              {assetActionError && (
+                <div className="hm-asset-error">{assetActionError}</div>
+              )}
               <div className="hm-asset-controls">
                 <div className="hm-asset-filters">
-                  {(["all", "video", "audio", "image"] as const).map((filter) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      className={`hm-asset-filter${assetFilter === filter ? " active" : ""}`}
-                      onClick={() => setAssetFilter(filter)}
-                    >
-                      {filter === "all"
-                        ? "All"
-                        : filter === "image"
-                          ? "Images"
-                          : formatAssetKind(filter)}
-                    </button>
-                  ))}
+                  {(["all", "video", "audio", "image"] as const).map(
+                    (filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        className={`hm-asset-filter${assetFilter === filter ? " active" : ""}`}
+                        onClick={() => setAssetFilter(filter)}
+                      >
+                        {filter === "all"
+                          ? "All"
+                          : filter === "image"
+                            ? "Images"
+                            : formatAssetKind(filter)}
+                      </button>
+                    ),
+                  )}
                 </div>
                 <label className="hm-asset-sort">
                   <span>Sort</span>
                   <select
                     value={assetSort}
                     onChange={(event) =>
-                      setAssetSort(event.target.value as "newest" | "name" | "type")
+                      setAssetSort(
+                        event.target.value as "newest" | "name" | "type",
+                      )
                     }
                   >
                     <option value="newest">Newest</option>
@@ -1624,7 +1788,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                 </label>
               </div>
               {visibleAssets.length === 0 ? (
-                <div className="hm-empty">Drop images, B-roll, intro/outro here.</div>
+                <div className="hm-empty">
+                  Drop images, B-roll, intro/outro here.
+                </div>
               ) : (
                 <div className="hm-asset-list">
                   {visibleAssets.map((asset) => {
@@ -1650,12 +1816,16 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                             {displayName}
                           </div>
                           {displayName !== asset.name && (
-                            <div className="hm-asset-filename" title={asset.name}>
+                            <div
+                              className="hm-asset-filename"
+                              title={asset.name}
+                            >
                               {asset.name}
                             </div>
                           )}
                           <div className="hm-asset-meta">
-                            {formatAssetKind(asset.kind)} · {formatBytes(asset.size)}
+                            {formatAssetKind(asset.kind)} ·{" "}
+                            {formatBytes(asset.size)}
                           </div>
                           <div className="hm-asset-actions">
                             <button
@@ -1685,7 +1855,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               <div className="hm-panel-header">
                 <div className="hm-panel-titleRow">
                   <h2 className="hm-panel-title">Transcript</h2>
-                  <span className="hm-panel-count">{segments.length} segments</span>
+                  <span className="hm-panel-count">
+                    {segments.length} segments
+                  </span>
                 </div>
                 <div className="hm-panel-actions">
                   <button
@@ -1709,13 +1881,15 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                   <div className="hm-transcript-offline-row">
                     <label className="hm-transcript-model">
                       <span>Model</span>
-                    <select
-                      value={asrModel}
-                      onChange={(event) => setAsrModel(event.target.value)}
-                      disabled={asrBusy}
-                    >
-                      <option value="openai/whisper-base.en">openai/whisper-base.en</option>
-                    </select>
+                      <select
+                        value={asrModel}
+                        onChange={(event) => setAsrModel(event.target.value)}
+                        disabled={asrBusy}
+                      >
+                        <option value="openai/whisper-base.en">
+                          openai/whisper-base.en
+                        </option>
+                      </select>
                     </label>
                     <button
                       className="hm-button hm-button--compact"
@@ -1732,21 +1906,29 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                       {asrCached && !asrBusy ? " - Model cached" : ""}
                     </span>
                     {asrDeviceLabel && (
-                      <span className="hm-transcript-pill">{asrDeviceLabel}</span>
+                      <span className="hm-transcript-pill">
+                        {asrDeviceLabel}
+                      </span>
                     )}
                   </div>
                   {asrStatus === "loading-model" && (
                     <div className="hm-transcript-progress">
                       <div
                         className="hm-transcript-progressFill"
-                        style={{ width: `${Math.round((asrProgress ?? 0) * 100)}%` }}
+                        style={{
+                          width: `${Math.round((asrProgress ?? 0) * 100)}%`,
+                        }}
                       />
                     </div>
                   )}
-                  {asrError && <div className="hm-transcript-error">{asrError}</div>}
+                  {asrError && (
+                    <div className="hm-transcript-error">{asrError}</div>
+                  )}
                 </div>
                 {transcriptStatus === "error" && (
-                  <p className="stacked-gap">Transcript error: {transcriptError}</p>
+                  <p className="stacked-gap">
+                    Transcript error: {transcriptError}
+                  </p>
                 )}
                 {transcriptStatus === "loading" && (
                   <p className="muted stacked-gap">Importing transcript...</p>
@@ -1769,7 +1951,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                           onClick={() => handleSegmentClick(segment)}
                           className={`transcript-segment${isActive ? " active" : ""}`}
                         >
-                          <div className="transcript-timestamp">{timeLabel}</div>
+                          <div className="transcript-timestamp">
+                            {timeLabel}
+                          </div>
                           <div className="transcript-text">{segment.text}</div>
                         </button>
                       );
@@ -1783,7 +1967,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
               <div className="hm-panel-header">
                 <div className="hm-panel-titleRow">
                   <h2 className="hm-panel-title">Shorts</h2>
-                  <span className="hm-panel-count">{shortSuggestions.length} suggestions</span>
+                  <span className="hm-panel-count">
+                    {shortSuggestions.length} suggestions
+                  </span>
                 </div>
               </div>
               <div className="hm-panel-body">
@@ -1806,7 +1992,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                       <select
                         value={shortPreset}
                         onChange={(event) =>
-                          setShortPreset(event.target.value as ShortLengthPreset)
+                          setShortPreset(
+                            event.target.value as ShortLengthPreset,
+                          )
                         }
                       >
                         {SHORT_PRESET_OPTIONS.map((option) => (
@@ -1821,7 +2009,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                       onClick={handleGenerateShorts}
                       disabled={shortsStatus === "loading" || shortsBlocked}
                     >
-                      {shortsStatus === "loading" ? "Generating..." : "Generate"}
+                      {shortsStatus === "loading"
+                        ? "Generating..."
+                        : "Generate"}
                     </button>
                     {shortSuggestions.length > 0 && (
                       <button
@@ -1834,13 +2024,21 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                     )}
                   </div>
                 </div>
-                {shortsBlocked && <p className="hm-short-warning">{shortsBlockedMessage}</p>}
+                {shortsBlocked && (
+                  <p className="hm-short-warning">{shortsBlockedMessage}</p>
+                )}
                 {shortsError && (
-                  <p className="hm-short-warning hm-short-warning--error">{shortsError}</p>
+                  <p className="hm-short-warning hm-short-warning--error">
+                    {shortsError}
+                  </p>
                 )}
-                {!shortsBlocked && shortSuggestions.length === 0 && shortsStatus === "idle" && (
-                  <p className="muted stacked-gap-lg">No suggestions yet. Generate to get started.</p>
-                )}
+                {!shortsBlocked &&
+                  shortSuggestions.length === 0 &&
+                  shortsStatus === "idle" && (
+                    <p className="muted stacked-gap-lg">
+                      No suggestions yet. Generate to get started.
+                    </p>
+                  )}
                 {shortSuggestions.length > 0 && (
                   <div className="hm-short-list">
                     {shortSuggestions.map((suggestion) => {
@@ -1848,16 +2046,22 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                       return (
                         <div key={suggestion.id} className="hm-short-card">
                           <div className="hm-short-header">
-                            <div className="hm-short-title" title={suggestion.title}>
+                            <div
+                              className="hm-short-title"
+                              title={suggestion.title}
+                            >
                               {suggestion.title}
                             </div>
-                            <div className="hm-short-score">Score {suggestion.score}</div>
+                            <div className="hm-short-score">
+                              Score {suggestion.score}
+                            </div>
                           </div>
                           <div className="hm-short-hook">{suggestion.hook}</div>
                           <div className="hm-short-meta">
                             <span>{formatDuration(duration)}</span>
                             <span>
-                              {formatTimestamp(suggestion.startMs)} - {formatTimestamp(suggestion.endMs)}
+                              {formatTimestamp(suggestion.startMs)} -{" "}
+                              {formatTimestamp(suggestion.endMs)}
                             </span>
                           </div>
                           <div className="hm-short-reasons">
@@ -1871,7 +2075,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                             <button
                               type="button"
                               className="hm-button hm-button--ghost hm-button--compact"
-                              onClick={() => void handlePreviewSuggestion(suggestion)}
+                              onClick={() =>
+                                void handlePreviewSuggestion(suggestion)
+                              }
                               disabled={!canTransport}
                             >
                               Preview
@@ -1879,7 +2085,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                             <button
                               type="button"
                               className="hm-button hm-button--compact"
-                              onClick={() => void handleCreateDraftCut(suggestion)}
+                              onClick={() =>
+                                void handleCreateDraftCut(suggestion)
+                              }
                               disabled={cutStatus === "loading"}
                             >
                               Create Draft Cut
@@ -1887,7 +2095,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                             <button
                               type="button"
                               className="hm-button hm-button--ghost hm-button--compact"
-                              onClick={() => handleDismissSuggestion(suggestion.id)}
+                              onClick={() =>
+                                handleDismissSuggestion(suggestion.id)
+                              }
                             >
                               Dismiss
                             </button>
@@ -1949,7 +2159,10 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
             ref={timelineScrollRef}
             onScroll={(event) => setScrollLeft(event.currentTarget.scrollLeft)}
           >
-            <div className="hm-timelineCanvas" style={{ width: timelineContentWidth }}>
+            <div
+              className="hm-timelineCanvas"
+              style={{ width: timelineContentWidth }}
+            >
               <div
                 className="hm-timeline-rail"
                 onMouseMove={handleTimelineMouseMove}
@@ -1970,14 +2183,20 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                         className={className}
                         style={{
                           left: `${percentForMs(tMs)}%`,
-                          backgroundImage: thumbUrl ? `url(${thumbUrl})` : undefined,
+                          backgroundImage: thumbUrl
+                            ? `url(${thumbUrl})`
+                            : undefined,
                         }}
                       />
                     );
                   })}
                 </div>
-                {selectionStyle && <div className="hm-timeline-range" style={selectionStyle} />}
-                {hoverStyle && <div className="hm-timeline-ghost" style={hoverStyle} />}
+                {selectionStyle && (
+                  <div className="hm-timeline-range" style={selectionStyle} />
+                )}
+                {hoverStyle && (
+                  <div className="hm-timeline-ghost" style={hoverStyle} />
+                )}
                 {splits.map((split) => (
                   <button
                     key={split.id}
@@ -2035,11 +2254,45 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
                     aria-label="Split at playhead"
                     title="Split at playhead"
                   >
-                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                      <circle cx="4" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                      <circle cx="4" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                      <line x1="6" y1="6" x2="14" y2="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                      <line x1="6" y1="10" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    <svg
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <circle
+                        cx="4"
+                        cy="4"
+                        r="2"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <circle
+                        cx="4"
+                        cy="12"
+                        r="2"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      />
+                      <line
+                        x1="6"
+                        y1="6"
+                        x2="14"
+                        y2="2"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                      <line
+                        x1="6"
+                        y1="10"
+                        x2="14"
+                        y2="14"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
                     </svg>
                   </button>
                 )}
@@ -2049,8 +2302,9 @@ export function EditorPage({ project, storage, onProjectUpdated, onBack }: Props
         </div>
         <div className="hm-timeline-footer">
           <div className="hm-timeline-meta">
-            Duration: {formatDuration(project.source.durationMs)} | {project.source.width}x
-            {project.source.height} | Updated: {new Date(project.updatedAt).toLocaleString()}
+            Duration: {formatDuration(project.source.durationMs)} |{" "}
+            {project.source.width}x{project.source.height} | Updated:{" "}
+            {new Date(project.updatedAt).toLocaleString()}
           </div>
           <div className="hm-timeline-footer-right">
             {exportStatus === "idle" ? (

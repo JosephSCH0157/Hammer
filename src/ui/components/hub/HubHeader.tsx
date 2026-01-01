@@ -1,4 +1,3 @@
-
 type Props = {
   onNewProject: () => void;
   onOpenProject: () => void;

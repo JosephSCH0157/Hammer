@@ -1,5 +1,4 @@
-MANIFEST — Hammer v0.01
-0. Summary
+MANIFEST — Hammer v0.01 0. Summary
 
 Hammer is a browser-based video editing tool for Podcaster’s Forge that replaces Descript-style “AI-assisted editing” workflows with a local-first, engine-agnostic pipeline:
 
@@ -74,8 +73,8 @@ Presets (atomic): export presets, caption styles, title/lower-thirds, audio pres
 Future: Forge-curated fixed workspaces (not user-editable).
 
 3. Product Requirements
-3. Product Requirements
-3.1 Import + Transcript
+4. Product Requirements
+   3.1 Import + Transcript
 
 Input: MP4 / MOV (and common web formats supported by browser)
 
@@ -238,131 +237,131 @@ onblocked is treated as a failure with a recoverable retry path.
 Manual validation: open Hammer in two tabs; ensure IDB blocked shows actionable error (close other tab and retry) and never hangs.
 
 5. Architecture
-5.1 Data Model (Canonical)
+   5.1 Data Model (Canonical)
 
 ProjectDoc (saved as JSON, versioned):
 
 type ProjectDoc = {
-  schemaVersion: "0.1";
-  projectId: string;
-  title?: string;
-  thumbnailAssetId?: AssetId;
-  createdAt: string;
-  updatedAt: string;
+schemaVersion: "0.1";
+projectId: string;
+title?: string;
+thumbnailAssetId?: AssetId;
+createdAt: string;
+updatedAt: string;
 
-  source: {
-    asset: AssetRef;        // provider-namespaced asset
-    filename: string;
-    durationMs: number;
-    width: number;
-    height: number;
-    fps?: number;
-  };
+source: {
+asset: AssetRef; // provider-namespaced asset
+filename: string;
+durationMs: number;
+width: number;
+height: number;
+fps?: number;
+};
 
-  transcript?: Transcript;
+transcript?: Transcript;
 
-  edl: {
-    cuts: Cut[];
-  };
+edl: {
+cuts: Cut[];
+};
 
-  effects: {
-    audio: { preset: "off" | "studio_clean"; params?: Record<string, number | boolean> };
-    video: {
-      backgroundBlur?: { enabled: boolean; amount: number; feather: number };
-    };
-    captions?: { enabled: boolean; styleId?: string }; // optional v0.01
-  };
+effects: {
+audio: { preset: "off" | "studio_clean"; params?: Record<string, number | boolean> };
+video: {
+backgroundBlur?: { enabled: boolean; amount: number; feather: number };
+};
+captions?: { enabled: boolean; styleId?: string }; // optional v0.01
+};
 
-  shorts: Array<ShortClip>;
+shorts: Array<ShortClip>;
 
-  assets: {
-    // logical assets referenced by the project (thumbnail panels etc.)
-    referencedAssetIds: AssetId[];
-  };
+assets: {
+// logical assets referenced by the project (thumbnail panels etc.)
+referencedAssetIds: AssetId[];
+};
 };
 
 type ProviderId = string; // "local", "tongs", etc.
-type AssetId = string;    // provider-namespaced (e.g., local:uuid)
+type AssetId = string; // provider-namespaced (e.g., local:uuid)
 type AssetRef = {
-  providerId: ProviderId;
-  assetId: AssetId;
+providerId: ProviderId;
+assetId: AssetId;
 };
 
 type Cut = {
-  id: string;
-  inMs: number;
-  outMs: number;
-  label?: string;
-  createdAt?: string;
+id: string;
+inMs: number;
+outMs: number;
+label?: string;
+createdAt?: string;
 };
 
 type ProjectListItem = {
-  projectId: string;
-  title?: string;
-  updatedAt: string;
-  filename: string;
-  durationMs: number;
-  width: number;
-  height: number;
-  hasTranscript: boolean;
-  cutsCount: number;
-  thumbnailAssetId?: AssetId;
+projectId: string;
+title?: string;
+updatedAt: string;
+filename: string;
+durationMs: number;
+width: number;
+height: number;
+hasTranscript: boolean;
+cutsCount: number;
+thumbnailAssetId?: AssetId;
 };
 
 type Transcript = {
-  engine?: string;
-  language?: string;
-  segments: Array<{ id: string; startMs: number; endMs?: number; text: string }>;
+engine?: string;
+language?: string;
+segments: Array<{ id: string; startMs: number; endMs?: number; text: string }>;
 };
 
 type ShortClip = {
-  id: string;
-  title?: string;
-  startMs: number;
-  endMs: number;
-  layout: ShortLayout;
+id: string;
+title?: string;
+startMs: number;
+endMs: number;
+layout: ShortLayout;
 };
 
 type ShortLayout =
-  | { kind: "single"; crop: CropRect }
-  | { kind: "split"; top: CropRect; bottom: CropRect; gutterPx: number }
-  | { kind: "stacked"; video: CropRect; panel: BrandPanel };
+| { kind: "single"; crop: CropRect }
+| { kind: "split"; top: CropRect; bottom: CropRect; gutterPx: number }
+| { kind: "stacked"; video: CropRect; panel: BrandPanel };
 
 type CropRect = { x: number; y: number; w: number; h: number }; // normalized 0..1
 type BrandPanel = {
-  heightRatio: number;       // 0..1 of 9:16 height
-  thumbnailAssetId: string;
-  titleText?: string;
-  handleText?: string;
+heightRatio: number; // 0..1 of 9:16 height
+thumbnailAssetId: string;
+titleText?: string;
+handleText?: string;
 };
 
 5.2 Engine Interfaces (Swap Later)
 interface TranscribeEngine {
-  id: string;
-  transcribe(asset: MediaAssetRef, opts: { language?: string }): Promise<Transcript>;
+id: string;
+transcribe(asset: MediaAssetRef, opts: { language?: string }): Promise<Transcript>;
 }
 
 interface RetakeEngine {
-  id: string;
-  detect(transcript: Transcript): Promise<Array<{ startMs: number; endMs: number; reason: string; confidence: number }>>;
+id: string;
+detect(transcript: Transcript): Promise<Array<{ startMs: number; endMs: number; reason: string; confidence: number }>>;
 }
 
 interface RenderEngine {
-  id: string;
-  exportFull(project: ProjectDoc, plan: RenderPlan): Promise<ExportResult>;
-  exportShort(project: ProjectDoc, shortId: string, plan: RenderPlan): Promise<ExportResult>;
+id: string;
+exportFull(project: ProjectDoc, plan: RenderPlan): Promise<ExportResult>;
+exportShort(project: ProjectDoc, shortId: string, plan: RenderPlan): Promise<ExportResult>;
 }
 
 interface StorageProvider {
-  providerId: string;
-  putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
-  getAsset(assetId: AssetId): Promise<Blob>;
-  relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
-  setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
-  setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc>;
-  saveProject(doc: ProjectDoc): Promise<void>;
-  loadProject(projectId: string): Promise<ProjectDoc>;
-  listProjects(): Promise<ProjectListItem[]>;
+providerId: string;
+putAsset(file: File): Promise<{ assetId: AssetId; meta: any }>;
+getAsset(assetId: AssetId): Promise<Blob>;
+relinkSource(projectId: string, file: File): Promise<ProjectDoc>;
+setTranscript(projectId: string, transcript: Transcript): Promise<ProjectDoc>;
+setCuts(projectId: string, cuts: Cut[]): Promise<ProjectDoc>;
+saveProject(doc: ProjectDoc): Promise<void>;
+loadProject(projectId: string): Promise<ProjectDoc>;
+listProjects(): Promise<ProjectListItem[]>;
 }
 
 5.3 RenderPlan (Editor/Renderer boundary)
@@ -390,24 +389,24 @@ merge overlaps and adjacencies
 Cuts are removed; everything else is kept.
 
 type RenderPlan = {
-  sourceAssetId: AssetId;
-  sourceDurationMs: number;
-  cuts: Array<{ inMs: number; outMs: number }>; // removed ranges when mode === "full"
-  mode: "full" | "clip";
-  clipRangeMs?: { inMs: number; outMs: number }; // kept range when mode === "clip"
+sourceAssetId: AssetId;
+sourceDurationMs: number;
+cuts: Array<{ inMs: number; outMs: number }>; // removed ranges when mode === "full"
+mode: "full" | "clip";
+clipRangeMs?: { inMs: number; outMs: number }; // kept range when mode === "clip"
 };
 
 type ExportResult = {
-  assetId: AssetId;
-  filename: string;
-  durationMs: number;
-  container: "webm" | "mp4";
-  bytes: number;
-  mime: string;
-  audioIncluded: boolean;
-  videoCodec?: string;
-  audioCodec?: string;
-  engine: "webcodecs" | "mediaRecorder" | "placeholder";
+assetId: AssetId;
+filename: string;
+durationMs: number;
+container: "webm" | "mp4";
+bytes: number;
+mime: string;
+audioIncluded: boolean;
+videoCodec?: string;
+audioCodec?: string;
+engine: "webcodecs" | "mediaRecorder" | "placeholder";
 };
 
 Renderer consumes plan + source media and returns ExportResult.
@@ -458,79 +457,79 @@ progress state (e.g., Encoding… 37%)
 human-readable failure messages (format unsupported, memory limits, etc.)
 
 7. Repo Layout (TypeScript, no monolith)
-hammer/
-  README.md
-  MANIFEST.md
-  package.json
-  tsconfig.json
-  vite.config.ts
-  src/
-    app/
-      bootstrap.ts
-      routes.ts
-      state/
-        store.ts
-        projectSlice.ts
-        uiSlice.ts
-    core/
-      types/
-        project.ts
-        transcript.ts
-        engine.ts
-      time/
-        timecode.ts
-        ranges.ts
-    providers/
-      storage/
-        storageProvider.ts
-        localProvider.ts
-        tongsProvider.stub.ts
-    engines/
-      transcribe/
-        transcribeEngine.ts
-        whisperWasmEngine.ts   // placeholder wiring in v0.01
-      retakes/
-        retakeEngine.ts
-        heuristicRetakes.ts
-      render/
-        renderEngine.ts
-        webcodecsRenderEngine.ts // v0.01 target
-    features/
-      ingest/
-        importMedia.ts
-        mediaMeta.ts
-      transcript/
-        transcriptView.tsx
-        transcriptSync.ts
-      retakes/
-        detectRetakes.ts
-        retakesPanel.tsx
-      effects/
-        audioStudio.ts
-        blurSegmentation.ts
-        effectsPanel.tsx
-      shorts/
-        suggestShorts.ts
-        shortsPanel.tsx
-        layouts.ts
-        cropOverlay.tsx
-    ui/
-      components/
-        Button.tsx
-        Tabs.tsx
-        Slider.tsx
-        Timeline.tsx
-      pages/
-        EditorPage.tsx
-        ProjectHubPage.tsx
-    styles/
-      hammer.css
-    main.tsx
-  public/
-    icons/
+   hammer/
+   README.md
+   MANIFEST.md
+   package.json
+   tsconfig.json
+   vite.config.ts
+   src/
+   app/
+   bootstrap.ts
+   routes.ts
+   state/
+   store.ts
+   projectSlice.ts
+   uiSlice.ts
+   core/
+   types/
+   project.ts
+   transcript.ts
+   engine.ts
+   time/
+   timecode.ts
+   ranges.ts
+   providers/
+   storage/
+   storageProvider.ts
+   localProvider.ts
+   tongsProvider.stub.ts
+   engines/
+   transcribe/
+   transcribeEngine.ts
+   whisperWasmEngine.ts // placeholder wiring in v0.01
+   retakes/
+   retakeEngine.ts
+   heuristicRetakes.ts
+   render/
+   renderEngine.ts
+   webcodecsRenderEngine.ts // v0.01 target
+   features/
+   ingest/
+   importMedia.ts
+   mediaMeta.ts
+   transcript/
+   transcriptView.tsx
+   transcriptSync.ts
+   retakes/
+   detectRetakes.ts
+   retakesPanel.tsx
+   effects/
+   audioStudio.ts
+   blurSegmentation.ts
+   effectsPanel.tsx
+   shorts/
+   suggestShorts.ts
+   shortsPanel.tsx
+   layouts.ts
+   cropOverlay.tsx
+   ui/
+   components/
+   Button.tsx
+   Tabs.tsx
+   Slider.tsx
+   Timeline.tsx
+   pages/
+   EditorPage.tsx
+   ProjectHubPage.tsx
+   styles/
+   hammer.css
+   main.tsx
+   public/
+   icons/
 
 8. Build Milestones (v0.01)
-M0 — Skeleton
+   M0 — Skeleton
 
 Vite + TS + basic editor shell
 

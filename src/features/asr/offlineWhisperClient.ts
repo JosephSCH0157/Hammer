@@ -1,4 +1,8 @@
-export type OfflineWhisperPhase = "loading-model" | "transcribing" | "done" | "error";
+export type OfflineWhisperPhase =
+  | "loading-model"
+  | "transcribing"
+  | "done"
+  | "error";
 
 export type OfflineWhisperStatus = {
   phase: OfflineWhisperPhase;
@@ -49,7 +53,7 @@ export type OfflineWhisperClient = {
     audio: Float32Array,
     sampleRate: number,
     options: TranscribeOptions,
-    onStatus?: (status: OfflineWhisperStatus) => void
+    onStatus?: (status: OfflineWhisperStatus) => void,
   ) => Promise<OfflineWhisperResult>;
   terminate: () => void;
 };
@@ -82,7 +86,7 @@ export const createOfflineWhisperClient = (): OfflineWhisperClient => {
     audio,
     sampleRate,
     options,
-    onStatus
+    onStatus,
   ) => {
     if (activeRequest) {
       return Promise.reject(new Error("Transcription already running."));
@@ -157,7 +161,7 @@ export const createOfflineWhisperClient = (): OfflineWhisperClient => {
           sampleRate,
           model: options.model,
         },
-        [audio.buffer]
+        [audio.buffer],
       );
     });
   };

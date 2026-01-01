@@ -1,4 +1,8 @@
-import type { ProjectDoc, TranscriptDoc, TranscriptSegment } from "../../core/types/project";
+import type {
+  ProjectDoc,
+  TranscriptDoc,
+  TranscriptSegment,
+} from "../../core/types/project";
 import type { StorageProvider } from "../../providers/storage/storageProvider";
 import { getMediaMetadata } from "./mediaMeta";
 
@@ -14,11 +18,13 @@ const createProjectId = (): string => {
 export const importMedia = async (
   file: File,
   storage: StorageProvider,
-  title?: string
+  title?: string,
 ): Promise<ProjectDoc> => {
   const metadata = await getMediaMetadata(file);
   if (metadata.durationMs > MAX_DURATION_MS) {
-    throw new Error("Video exceeds 90-minute limit. Please trim before importing.");
+    throw new Error(
+      "Video exceeds 90-minute limit. Please trim before importing.",
+    );
   }
   const asset = await storage.putAsset(file);
   const now = new Date().toISOString();
@@ -98,8 +104,12 @@ const parseTimestampMs = (value: string): number | null => {
 };
 
 const normalizeSegment = (segment: TranscriptSegment): TranscriptSegment => {
-  const startMs = Number.isFinite(segment.startMs) ? Math.max(0, segment.startMs) : 0;
-  const endMs = Number.isFinite(segment.endMs) ? Math.max(startMs, segment.endMs) : startMs;
+  const startMs = Number.isFinite(segment.startMs)
+    ? Math.max(0, segment.startMs)
+    : 0;
+  const endMs = Number.isFinite(segment.endMs)
+    ? Math.max(startMs, segment.endMs)
+    : startMs;
   return {
     ...segment,
     startMs,
@@ -123,7 +133,11 @@ export const parseVtt = (text: string): TranscriptSegment[] => {
     if (upper.startsWith("WEBVTT")) {
       continue;
     }
-    if (upper.startsWith("NOTE") || upper.startsWith("STYLE") || upper.startsWith("REGION")) {
+    if (
+      upper.startsWith("NOTE") ||
+      upper.startsWith("STYLE") ||
+      upper.startsWith("REGION")
+    ) {
       while (index < lines.length) {
         const noteLine = lines[index];
         if (!noteLine || noteLine.trim() === "") {
@@ -252,7 +266,7 @@ export const parseTxt = (text: string): TranscriptSegment[] => {
 export const buildTranscriptDoc = (
   segments: TranscriptSegment[],
   sourceAssetId?: string,
-  language?: string
+  language?: string,
 ): TranscriptDoc => {
   const doc: TranscriptDoc = {
     id: createTranscriptId(),

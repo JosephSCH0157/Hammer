@@ -1,4 +1,8 @@
-import type { ExportContainer, ExportRequest, RenderPlan } from "../../../core/types/render";
+import type {
+  ExportContainer,
+  ExportRequest,
+  RenderPlan,
+} from "../../../core/types/render";
 import type { StorageProvider } from "../../../providers/storage/storageProvider";
 import { computeKeptRangesForPlan } from "../../../core/time/keptRanges";
 
@@ -9,7 +13,11 @@ const pickRecorderMimeType = (container: ExportContainer): string => {
   const candidates =
     container === "mp4"
       ? ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4"]
-      : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+      : [
+          "video/webm;codecs=vp9,opus",
+          "video/webm;codecs=vp8,opus",
+          "video/webm",
+        ];
   for (const candidate of candidates) {
     if (MediaRecorder.isTypeSupported(candidate)) {
       return candidate;
@@ -21,7 +29,7 @@ const pickRecorderMimeType = (container: ExportContainer): string => {
 const waitForVideoEvent = (
   video: HTMLVideoElement,
   eventName: keyof HTMLMediaElementEventMap,
-  errorMessage: string
+  errorMessage: string,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     const handleEvent = () => {
@@ -54,7 +62,11 @@ const attemptPlay = async (video: HTMLVideoElement): Promise<void> => {
   try {
     await video.play();
   } catch (error) {
-    if (error instanceof DOMException && error.name === "NotAllowedError" && !video.muted) {
+    if (
+      error instanceof DOMException &&
+      error.name === "NotAllowedError" &&
+      !video.muted
+    ) {
       video.muted = true;
       await video.play();
       return;
@@ -113,14 +125,16 @@ const playUntilMs = (video: HTMLVideoElement, endMs: number): Promise<void> =>
       }
       settled = true;
       cleanup();
-      reject(error instanceof Error ? error : new Error("Video playback failed"));
+      reject(
+        error instanceof Error ? error : new Error("Video playback failed"),
+      );
     });
   });
 
 export const encodeWithMediaRecorder = async (
   plan: RenderPlan,
   storage: StorageProvider,
-  request: ExportRequest
+  request: ExportRequest,
 ): Promise<{
   blob: Blob;
   mime: string;
@@ -154,7 +168,11 @@ export const encodeWithMediaRecorder = async (
   }
 
   try {
-    await waitForVideoEvent(video, "loadedmetadata", "Video metadata failed to load");
+    await waitForVideoEvent(
+      video,
+      "loadedmetadata",
+      "Video metadata failed to load",
+    );
     const stream = capture.call(video);
     const mime = pickRecorderMimeType(request.container);
     const recorder = new MediaRecorder(stream, { mimeType: mime });

@@ -40,12 +40,47 @@ const LENGTH_PRESETS: Record<ShortLengthPreset, LengthPreset> = {
 
 const INTENT_WEIGHTS: Record<
   ShortIntent,
-  { hook: number; completeness: number; curiosity: number; clarity: number; humor: number; lengthFit: number }
+  {
+    hook: number;
+    completeness: number;
+    curiosity: number;
+    clarity: number;
+    humor: number;
+    lengthFit: number;
+  }
 > = {
-  teaser_funnel: { hook: 0.3, completeness: 0, curiosity: 0.25, clarity: 0.25, humor: 0, lengthFit: 0.2 },
-  ctr_hook: { hook: 0.45, completeness: 0.25, curiosity: 0, clarity: 0.1, humor: 0, lengthFit: 0.2 },
-  value_evergreen: { hook: 0.15, completeness: 0.35, curiosity: 0, clarity: 0.35, humor: 0, lengthFit: 0.15 },
-  community_personality: { hook: 0.25, completeness: 0, curiosity: 0, clarity: 0.2, humor: 0.35, lengthFit: 0.2 },
+  teaser_funnel: {
+    hook: 0.3,
+    completeness: 0,
+    curiosity: 0.25,
+    clarity: 0.25,
+    humor: 0,
+    lengthFit: 0.2,
+  },
+  ctr_hook: {
+    hook: 0.45,
+    completeness: 0.25,
+    curiosity: 0,
+    clarity: 0.1,
+    humor: 0,
+    lengthFit: 0.2,
+  },
+  value_evergreen: {
+    hook: 0.15,
+    completeness: 0.35,
+    curiosity: 0,
+    clarity: 0.35,
+    humor: 0,
+    lengthFit: 0.15,
+  },
+  community_personality: {
+    hook: 0.25,
+    completeness: 0,
+    curiosity: 0,
+    clarity: 0.2,
+    humor: 0.35,
+    lengthFit: 0.2,
+  },
 };
 
 const hookPhrases = [
@@ -62,15 +97,40 @@ const hookPhrases = [
   "always",
 ];
 
-const contrastPhrases = ["but", "however", "yet", "although", "instead", "on the other hand"];
+const contrastPhrases = [
+  "but",
+  "however",
+  "yet",
+  "although",
+  "instead",
+  "on the other hand",
+];
 
-const resolvePhrases = ["so", "because", "therefore", "as a result", "that means", "which means", "the point is"];
+const resolvePhrases = [
+  "so",
+  "because",
+  "therefore",
+  "as a result",
+  "that means",
+  "which means",
+  "the point is",
+];
 
-const humorPhrases = ["haha", "lol", "lmao", "funny", "joke", "hilarious", "wild", "crazy"];
+const humorPhrases = [
+  "haha",
+  "lol",
+  "lmao",
+  "funny",
+  "joke",
+  "hilarious",
+  "wild",
+  "crazy",
+];
 
 const curiosityEndings = ["?", "...", " but", " so", " because", " here's why"];
 
-const normalizeText = (text: string): string => text.replace(/\s+/g, " ").trim();
+const normalizeText = (text: string): string =>
+  text.replace(/\s+/g, " ").trim();
 
 const truncate = (text: string, maxLength: number): string => {
   if (text.length <= maxLength) {
@@ -176,7 +236,11 @@ const scoreClarity = (openingText: string): number => {
   const pronounCount = words.filter((word) => pronouns.has(word)).length;
   const ratio = pronounCount / Math.max(1, words.length);
   let score = 1 - Math.min(1, ratio * 1.5);
-  if (lower.includes("as we said") || lower.includes("as mentioned") || lower.includes("as noted")) {
+  if (
+    lower.includes("as we said") ||
+    lower.includes("as mentioned") ||
+    lower.includes("as noted")
+  ) {
     score -= 0.2;
   }
   return Math.max(0, Math.min(1, score));
@@ -205,10 +269,17 @@ const scoreLengthFit = (durationMs: number, preset: LengthPreset): number => {
 const buildSignals = (
   segments: TranscriptSegment[],
   durationMs: number,
-  preset: LengthPreset
+  preset: LengthPreset,
 ): ScoreSignals => {
-  const openingText = normalizeText(segments.slice(0, 2).map((segment) => segment.text).join(" "));
-  const fullText = normalizeText(segments.map((segment) => segment.text).join(" "));
+  const openingText = normalizeText(
+    segments
+      .slice(0, 2)
+      .map((segment) => segment.text)
+      .join(" "),
+  );
+  const fullText = normalizeText(
+    segments.map((segment) => segment.text).join(" "),
+  );
   return {
     hook: scoreHook(openingText),
     completeness: scoreCompleteness(fullText),
@@ -280,7 +351,9 @@ const dedupeCandidates = (candidates: CandidateWindow[]): CandidateWindow[] => {
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
   const kept: CandidateWindow[] = [];
   sorted.forEach((candidate) => {
-    const tooSimilar = kept.some((existing) => overlapRatio(candidate, existing) > 0.7);
+    const tooSimilar = kept.some(
+      (existing) => overlapRatio(candidate, existing) > 0.7,
+    );
     if (!tooSimilar) {
       kept.push(candidate);
     }
@@ -292,7 +365,7 @@ export const generateShortSuggestions = (
   transcript: TranscriptDoc,
   intent: ShortIntent,
   lengthPreset: ShortLengthPreset,
-  maxSuggestions = 20
+  maxSuggestions = 20,
 ): ShortSuggestion[] => {
   const segments = normalizeSegments(transcript);
   if (segments.length === 0) {
@@ -321,13 +394,17 @@ export const generateShortSuggestions = (
       if (durationMs > maxMs) {
         endMs = startMs + maxMs;
       }
-      const isBoundary = isGoodBoundary(endSegment.text) || endMs >= startMs + maxMs;
+      const isBoundary =
+        isGoodBoundary(endSegment.text) || endMs >= startMs + maxMs;
       if (!isBoundary) {
         continue;
       }
       const windowSegments = segments.slice(startIndex, endIndex + 1);
       const normalizedHook = normalizeText(
-        windowSegments.slice(0, 2).map((segment) => segment.text).join(" ")
+        windowSegments
+          .slice(0, 2)
+          .map((segment) => segment.text)
+          .join(" "),
       );
       const hook = truncate(normalizedHook, 120);
       const title = buildTitle(hook);

@@ -23,7 +23,10 @@ const hasWebCodecs = (): boolean => {
     VideoEncoder?: unknown;
     AudioEncoder?: unknown;
   };
-  return typeof api.VideoEncoder !== "undefined" && typeof api.AudioEncoder !== "undefined";
+  return (
+    typeof api.VideoEncoder !== "undefined" &&
+    typeof api.AudioEncoder !== "undefined"
+  );
 };
 
 export const canEncodeWebmWithWebCodecs = (): boolean => hasWebCodecs();
@@ -34,7 +37,9 @@ type RangeWithOffset = {
   offsetMs: number;
 };
 
-const buildRangeOffsets = (ranges: Array<{ inMs: number; outMs: number }>): RangeWithOffset[] => {
+const buildRangeOffsets = (
+  ranges: Array<{ inMs: number; outMs: number }>,
+): RangeWithOffset[] => {
   let offset = 0;
   return ranges.map((range) => {
     const span = Math.max(0, range.outMs - range.inMs);
@@ -46,7 +51,7 @@ const buildRangeOffsets = (ranges: Array<{ inMs: number; outMs: number }>): Rang
 
 const mapSourceMsToKept = (
   sourceMs: number,
-  ranges: RangeWithOffset[]
+  ranges: RangeWithOffset[],
 ): { keptMs: number; rangeOutMs: number } | null => {
   if (!Number.isFinite(sourceMs) || sourceMs < 0) {
     return null;
@@ -79,7 +84,7 @@ const qualityForPreset = (preset: ExportRequest["preset"]) => {
 export const encodeWithWebCodecsWebm = async (
   plan: RenderPlan,
   storage: StorageProvider,
-  request: ExportRequest
+  request: ExportRequest,
 ): Promise<{
   blob: Blob;
   mime: string;
@@ -111,10 +116,7 @@ export const encodeWithWebCodecsWebm = async (
     target,
   });
 
-  const videoCodec = await getFirstEncodableVideoCodec([
-    "vp9",
-    "vp8",
-  ], {
+  const videoCodec = await getFirstEncodableVideoCodec(["vp9", "vp8"], {
     ...(request.width !== undefined ? { width: request.width } : {}),
     ...(request.height !== undefined ? { height: request.height } : {}),
     bitrate: quality,
@@ -169,7 +171,10 @@ export const encodeWithWebCodecsWebm = async (
           ? {
               process: (sample: AudioSample) => {
                 const sourceMs = sample.timestamp * 1000;
-                const mapped = mapSourceMsToKept(sourceMs, keptRangesWithOffset);
+                const mapped = mapSourceMsToKept(
+                  sourceMs,
+                  keptRangesWithOffset,
+                );
                 if (!mapped) {
                   return null;
                 }

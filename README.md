@@ -183,13 +183,12 @@ Hammer never hardcodes filesystem paths.
 
 Repo Structure
 src/
-  app/          # app bootstrap, routing, state
-  core/         # shared types, time math, utilities
-  providers/    # storage providers (local, TONGS stub)
-  engines/      # transcription, retakes, rendering
-  features/     # ingest, transcript, shorts, effects
-  ui/           # reusable UI components
-
+app/ # app bootstrap, routing, state
+core/ # shared types, time math, utilities
+providers/ # storage providers (local, TONGS stub)
+engines/ # transcription, retakes, rendering
+features/ # ingest, transcript, shorts, effects
+ui/ # reusable UI components
 
 No single file should exceed ~500 lines.
 

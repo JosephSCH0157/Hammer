@@ -24,7 +24,9 @@ const parseRoute = (pathname: string): Route => {
 };
 
 const useRoute = (): { route: Route; navigate: (path: string) => void } => {
-  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.pathname));
+  const [route, setRoute] = useState<Route>(() =>
+    parseRoute(window.location.pathname),
+  );
 
   useEffect(() => {
     const handlePopState = () => setRoute(parseRoute(window.location.pathname));
@@ -68,7 +70,8 @@ export function App() {
           setProjectState({
             status: "error",
             project: null,
-            error: error instanceof Error ? error.message : "Unable to load project",
+            error:
+              error instanceof Error ? error.message : "Unable to load project",
           });
         }
       });
@@ -118,7 +121,9 @@ export function App() {
   return (
     <ProjectHubPage
       storage={storage}
-      onOpenProject={(projectId) => navigate(`/editor/${encodeURIComponent(projectId)}`)}
+      onOpenProject={(projectId) =>
+        navigate(`/editor/${encodeURIComponent(projectId)}`)
+      }
     />
   );
 }

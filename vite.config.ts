@@ -6,10 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    strictPort: true
+    strictPort: true,
   },
   build: {
     target: "es2022",
-    sourcemap: true
-  }
+    sourcemap: true,
+  },
 });

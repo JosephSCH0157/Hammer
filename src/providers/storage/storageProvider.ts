@@ -1,4 +1,12 @@
-import type { Asset, AssetId, Cut, ProjectDoc, ProviderId, Split, TranscriptDoc } from "../../core/types/project";
+import type {
+  Asset,
+  AssetId,
+  Cut,
+  ProjectDoc,
+  ProviderId,
+  Split,
+  TranscriptDoc,
+} from "../../core/types/project";
 
 export type ProjectListItem = {
   projectId: string;

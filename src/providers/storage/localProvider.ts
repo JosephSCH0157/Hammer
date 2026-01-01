@@ -1,5 +1,18 @@
-import type { Asset, AssetRef, Cut, ProjectDoc, ProviderId, Split, TranscriptDoc, TranscriptSegment } from "../../core/types/project";
-import type { AssetMeta, ProjectListItem, StorageProvider } from "./storageProvider";
+import type {
+  Asset,
+  AssetRef,
+  Cut,
+  ProjectDoc,
+  ProviderId,
+  Split,
+  TranscriptDoc,
+  TranscriptSegment,
+} from "../../core/types/project";
+import type {
+  AssetMeta,
+  ProjectListItem,
+  StorageProvider,
+} from "./storageProvider";
 import { getAssetRecord, putAssetRecord } from "./idb";
 import { getMediaMetadata } from "../../features/ingest/mediaMeta";
 
@@ -43,7 +56,9 @@ const buildSummary = (doc: ProjectDoc): ProjectListItem => {
   return summary;
 };
 
-const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, ProjectListItem> => {
+const buildIndexFromDocs = (
+  docs: Record<string, ProjectDoc>,
+): Record<string, ProjectListItem> => {
   const index: Record<string, ProjectListItem> = {};
   Object.values(docs).forEach((doc) => {
     index[doc.projectId] = buildSummary(doc);
@@ -51,8 +66,15 @@ const buildIndexFromDocs = (docs: Record<string, ProjectDoc>): Record<string, Pr
   return index;
 };
 
-type LegacyProjectSource = Omit<ProjectDoc["source"], "asset"> & { assetId: string };
-type LegacyCut = { startMs?: number; endMs?: number; reason?: string; enabled?: boolean };
+type LegacyProjectSource = Omit<ProjectDoc["source"], "asset"> & {
+  assetId: string;
+};
+type LegacyCut = {
+  startMs?: number;
+  endMs?: number;
+  reason?: string;
+  enabled?: boolean;
+};
 type LegacyEdl = { cuts?: LegacyCut[] };
 type LegacyTranscriptSegment = {
   id?: string;
@@ -76,7 +98,7 @@ type LegacyProjectDoc = Omit<ProjectDoc, "source" | "edl"> & {
 
 const normalizeSource = (
   source: ProjectDoc["source"] | LegacyProjectSource,
-  fallbackProviderId: ProviderId
+  fallbackProviderId: ProviderId,
 ): { source: ProjectDoc["source"]; migrated: boolean } | null => {
   if (!source || typeof source !== "object") {
     return null;
@@ -96,11 +118,13 @@ const normalizeSource = (
       return null;
     }
     const parsedProviderId = splitAssetId(asset.assetId).providerId;
-    const providerId = parsedProviderId ?? asset.providerId ?? fallbackProviderId;
+    const providerId =
+      parsedProviderId ?? asset.providerId ?? fallbackProviderId;
     const normalizedAssetId = parsedProviderId
       ? asset.assetId
       : namespaceAssetId(providerId, asset.assetId);
-    const migrated = providerId !== asset.providerId || normalizedAssetId !== asset.assetId;
+    const migrated =
+      providerId !== asset.providerId || normalizedAssetId !== asset.assetId;
     return {
       source: {
         ...base,
@@ -127,7 +151,7 @@ const normalizeSource = (
 };
 
 const normalizeCuts = (
-  edl: ProjectDoc["edl"] | LegacyEdl | undefined
+  edl: ProjectDoc["edl"] | LegacyEdl | undefined,
 ): { edl: ProjectDoc["edl"]; migrated: boolean } => {
   if (!edl || !Array.isArray(edl.cuts)) {
     return { edl: { cuts: [] }, migrated: Boolean(edl) };
@@ -149,9 +173,10 @@ const normalizeCuts = (
       if (cut.endMs <= cut.startMs) {
         return acc;
       }
-      const label = typeof cut.reason === "string" && cut.reason.trim().length
-        ? cut.reason.trim()
-        : undefined;
+      const label =
+        typeof cut.reason === "string" && cut.reason.trim().length
+          ? cut.reason.trim()
+          : undefined;
       const entry: Cut = {
         id: `legacy_${index}_${cut.startMs}_${cut.endMs}`,
         inMs: cut.startMs,
@@ -170,7 +195,7 @@ const normalizeCuts = (
 };
 
 const normalizeSplits = (
-  splits: ProjectDoc["splits"] | undefined
+  splits: ProjectDoc["splits"] | undefined,
 ): { splits: Split[]; migrated: boolean } => {
   if (!splits) {
     return { splits: [], migrated: false };
@@ -200,38 +225,50 @@ const normalizeSplits = (
 };
 
 const normalizeTranscript = (
-  transcript: ProjectDoc["transcript"] | LegacyTranscript | undefined
+  transcript: ProjectDoc["transcript"] | LegacyTranscript | undefined,
 ): { transcript?: TranscriptDoc; migrated: boolean } => {
   if (!transcript) {
     return { migrated: false };
   }
-  const rawSegments = Array.isArray(transcript.segments) ? transcript.segments : [];
-  const normalizedSegments: TranscriptSegment[] = rawSegments.reduce((acc, segment, index) => {
-    if (!segment || typeof segment !== "object") {
+  const rawSegments = Array.isArray(transcript.segments)
+    ? transcript.segments
+    : [];
+  const normalizedSegments: TranscriptSegment[] = rawSegments.reduce(
+    (acc, segment, index) => {
+      if (!segment || typeof segment !== "object") {
+        return acc;
+      }
+      const rawStart =
+        typeof segment.startMs === "number" ? segment.startMs : 0;
+      const rawEnd =
+        typeof segment.endMs === "number" ? segment.endMs : rawStart;
+      const startMs = Number.isFinite(rawStart) ? Math.max(0, rawStart) : 0;
+      const endMs = Number.isFinite(rawEnd)
+        ? Math.max(startMs, rawEnd)
+        : startMs;
+      const text = typeof segment.text === "string" ? segment.text.trim() : "";
+      if (!text) {
+        return acc;
+      }
+      const id =
+        typeof segment.id === "string" && segment.id.trim().length > 0
+          ? segment.id.trim()
+          : `seg_${index}_${startMs}`;
+      const entry: TranscriptSegment = { id, startMs, endMs, text };
+      if (
+        typeof segment.speaker === "string" &&
+        segment.speaker.trim().length > 0
+      ) {
+        entry.speaker = segment.speaker.trim();
+      }
+      if (typeof segment.confidence === "number") {
+        entry.confidence = segment.confidence;
+      }
+      acc.push(entry);
       return acc;
-    }
-    const rawStart = typeof segment.startMs === "number" ? segment.startMs : 0;
-    const rawEnd = typeof segment.endMs === "number" ? segment.endMs : rawStart;
-    const startMs = Number.isFinite(rawStart) ? Math.max(0, rawStart) : 0;
-    const endMs = Number.isFinite(rawEnd) ? Math.max(startMs, rawEnd) : startMs;
-    const text = typeof segment.text === "string" ? segment.text.trim() : "";
-    if (!text) {
-      return acc;
-    }
-    const id =
-      typeof segment.id === "string" && segment.id.trim().length > 0
-        ? segment.id.trim()
-        : `seg_${index}_${startMs}`;
-    const entry: TranscriptSegment = { id, startMs, endMs, text };
-    if (typeof segment.speaker === "string" && segment.speaker.trim().length > 0) {
-      entry.speaker = segment.speaker.trim();
-    }
-    if (typeof segment.confidence === "number") {
-      entry.confidence = segment.confidence;
-    }
-    acc.push(entry);
-    return acc;
-  }, [] as TranscriptSegment[]);
+    },
+    [] as TranscriptSegment[],
+  );
   normalizedSegments.sort((a, b) => a.startMs - b.startMs);
   const doc: TranscriptDoc = {
     id:
@@ -239,15 +276,22 @@ const normalizeTranscript = (
         ? transcript.id.trim()
         : createId(),
     createdAt:
-      typeof transcript.createdAt === "number" && Number.isFinite(transcript.createdAt)
+      typeof transcript.createdAt === "number" &&
+      Number.isFinite(transcript.createdAt)
         ? transcript.createdAt
         : Date.now(),
     segments: normalizedSegments,
   };
-  if (typeof transcript.sourceAssetId === "string" && transcript.sourceAssetId.trim().length > 0) {
+  if (
+    typeof transcript.sourceAssetId === "string" &&
+    transcript.sourceAssetId.trim().length > 0
+  ) {
     doc.sourceAssetId = transcript.sourceAssetId.trim();
   }
-  if (typeof transcript.language === "string" && transcript.language.trim().length > 0) {
+  if (
+    typeof transcript.language === "string" &&
+    transcript.language.trim().length > 0
+  ) {
     doc.language = transcript.language.trim();
   }
   return { transcript: doc, migrated: true };
@@ -256,7 +300,7 @@ const normalizeTranscript = (
 type LegacyAssets = { referencedAssetIds?: string[] };
 
 const normalizeAssets = (
-  assets: ProjectDoc["assets"] | LegacyAssets | undefined
+  assets: ProjectDoc["assets"] | LegacyAssets | undefined,
 ): { assets: Asset[]; migrated: boolean } => {
   if (!assets) {
     return { assets: [], migrated: false };
@@ -275,7 +319,11 @@ const normalizeAssets = (
     ) {
       return acc;
     }
-    if (asset.kind !== "image" && asset.kind !== "video" && asset.kind !== "audio") {
+    if (
+      asset.kind !== "image" &&
+      asset.kind !== "video" &&
+      asset.kind !== "audio"
+    ) {
       return acc;
     }
     const entry: Asset = {
@@ -284,9 +332,15 @@ const normalizeAssets = (
       name: asset.name,
       size: asset.size,
       mime: typeof asset.mime === "string" ? asset.mime : "",
-      createdAt: typeof asset.createdAt === "string" ? asset.createdAt : new Date().toISOString(),
+      createdAt:
+        typeof asset.createdAt === "string"
+          ? asset.createdAt
+          : new Date().toISOString(),
     };
-    if (typeof asset.displayName === "string" && asset.displayName.trim().length > 0) {
+    if (
+      typeof asset.displayName === "string" &&
+      asset.displayName.trim().length > 0
+    ) {
       entry.displayName = asset.displayName.trim();
     }
     if (typeof asset.durationMs === "number") {
@@ -300,7 +354,7 @@ const normalizeAssets = (
 
 const normalizeProjectDocs = (
   docs: Record<string, ProjectDoc | LegacyProjectDoc>,
-  providerId: ProviderId
+  providerId: ProviderId,
 ): { docs: Record<string, ProjectDoc>; migrated: boolean } => {
   const normalized: Record<string, ProjectDoc> = {};
   let migrated = false;
@@ -353,13 +407,16 @@ const normalizeProjectDocs = (
 
 const parseProjectDocs = (
   raw: string | null,
-  providerId: ProviderId
+  providerId: ProviderId,
 ): { docs: Record<string, ProjectDoc>; migrated: boolean } | null => {
   if (!raw) {
     return null;
   }
   try {
-    const parsed = JSON.parse(raw) as Record<string, ProjectDoc | LegacyProjectDoc>;
+    const parsed = JSON.parse(raw) as Record<
+      string,
+      ProjectDoc | LegacyProjectDoc
+    >;
     if (!parsed || typeof parsed !== "object") {
       return null;
     }
@@ -376,10 +433,16 @@ const migrateLegacyProjects = (): Record<string, ProjectDoc> | null => {
   if (localStorage.getItem(PROJECT_MIGRATION_KEY)) {
     return null;
   }
-  if (localStorage.getItem(PROJECT_DOCS_KEY) || localStorage.getItem(PROJECT_INDEX_KEY)) {
+  if (
+    localStorage.getItem(PROJECT_DOCS_KEY) ||
+    localStorage.getItem(PROJECT_INDEX_KEY)
+  ) {
     return null;
   }
-  const legacyDocs = parseProjectDocs(localStorage.getItem(LEGACY_PROJECTS_KEY), LOCAL_PROVIDER_ID);
+  const legacyDocs = parseProjectDocs(
+    localStorage.getItem(LEGACY_PROJECTS_KEY),
+    LOCAL_PROVIDER_ID,
+  );
   if (!legacyDocs) {
     return null;
   }
@@ -394,7 +457,10 @@ const loadProjectDocs = (): Record<string, ProjectDoc> => {
   if (!hasLocalStorage()) {
     return { ...memoryDocs };
   }
-  const storedDocs = parseProjectDocs(localStorage.getItem(PROJECT_DOCS_KEY), LOCAL_PROVIDER_ID);
+  const storedDocs = parseProjectDocs(
+    localStorage.getItem(PROJECT_DOCS_KEY),
+    LOCAL_PROVIDER_ID,
+  );
   if (storedDocs) {
     if (storedDocs.migrated) {
       saveProjectDocs(storedDocs.docs);
@@ -405,7 +471,10 @@ const loadProjectDocs = (): Record<string, ProjectDoc> => {
   if (migratedDocs) {
     return migratedDocs;
   }
-  const legacyDocs = parseProjectDocs(localStorage.getItem(LEGACY_PROJECTS_KEY), LOCAL_PROVIDER_ID);
+  const legacyDocs = parseProjectDocs(
+    localStorage.getItem(LEGACY_PROJECTS_KEY),
+    LOCAL_PROVIDER_ID,
+  );
   if (legacyDocs) {
     if (legacyDocs.migrated) {
       saveProjectDocs(legacyDocs.docs);
@@ -436,7 +505,7 @@ const loadProjectIndex = (): Record<string, ProjectListItem> => {
           typeof item.cutsCount !== "number" ||
           typeof item.splitsCount !== "number" ||
           typeof item.assetsCount !== "number" ||
-          typeof item.transcriptSegmentsCount !== "number"
+          typeof item.transcriptSegmentsCount !== "number",
       );
       if (!needsRebuild) {
         return parsed;
@@ -469,7 +538,9 @@ const createId = (): string => {
 const namespaceAssetId = (providerId: ProviderId, assetId: string): string =>
   `${providerId}:${assetId}`;
 
-const splitAssetId = (assetId: string): { providerId: string | null; rawId: string } => {
+const splitAssetId = (
+  assetId: string,
+): { providerId: string | null; rawId: string } => {
   const separatorIndex = assetId.indexOf(":");
   if (separatorIndex <= 0) {
     return { providerId: null, rawId: assetId };
@@ -480,12 +551,15 @@ const splitAssetId = (assetId: string): { providerId: string | null; rawId: stri
   };
 };
 
-const buildAssetLookupIds = (assetId: string, providerId: ProviderId): string[] => {
+const buildAssetLookupIds = (
+  assetId: string,
+  providerId: ProviderId,
+): string[] => {
   const parsed = splitAssetId(assetId);
   if (parsed.providerId) {
     if (parsed.providerId !== providerId) {
       throw new Error(
-        `Asset provider mismatch: expected "${providerId}", got "${parsed.providerId}"`
+        `Asset provider mismatch: expected "${providerId}", got "${parsed.providerId}"`,
       );
     }
     return [assetId, parsed.rawId];
@@ -545,13 +619,16 @@ export class LocalStorageProvider implements StorageProvider {
       }
       throw new Error(`Asset not found: ${assetId}`);
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith("Asset not found")) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith("Asset not found")
+      ) {
         throw error;
       }
       throw new Error(
         `Asset lookup failed for ${assetId}: ${
           error instanceof Error ? error.message : "Unknown error"
-        }`
+        }`,
       );
     }
   }
@@ -590,7 +667,10 @@ export class LocalStorageProvider implements StorageProvider {
     return updatedDoc;
   }
 
-  async setTranscript(projectId: string, transcript?: TranscriptDoc): Promise<void> {
+  async setTranscript(
+    projectId: string,
+    transcript?: TranscriptDoc,
+  ): Promise<void> {
     const docs = loadProjectDocs();
     const index = loadProjectIndex();
     const existing = docs[projectId];
@@ -662,7 +742,9 @@ export class LocalStorageProvider implements StorageProvider {
     if (!existing) {
       throw new Error(`Project not found: ${projectId}`);
     }
-    const sortedAssets = [...assets].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const sortedAssets = [...assets].sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    );
     const updatedDoc: ProjectDoc = {
       ...existing,
       assets: sortedAssets,

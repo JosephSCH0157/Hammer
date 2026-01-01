@@ -29,7 +29,10 @@ export type ProjectDoc = {
     cuts: Cut[];
   };
   effects: {
-    audio: { preset: "off" | "studio_clean"; params?: Record<string, number | boolean> };
+    audio: {
+      preset: "off" | "studio_clean";
+      params?: Record<string, number | boolean>;
+    };
     video: {
       backgroundBlur?: { enabled: boolean; amount: number; feather: number };
     };

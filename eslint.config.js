@@ -19,7 +19,7 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": reactHooks,
-      "react-refresh": reactRefresh
+      "react-refresh": reactRefresh,
     },
     rules: {
       // React Hooks rules
@@ -28,18 +28,18 @@ export default [
       // Vite HMR safety
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true }
+        { allowConstantExport: true },
       ],
 
       // Sensible TS strictness (keep signal high)
       "@typescript-eslint/no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
 
       // Prefer clarity
-      "no-console": ["warn", { allow: ["warn", "error"] }]
-    }
-  }
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+    },
+  },
 ];

@@ -27,7 +27,7 @@ const downmixToMono = (buffer: AudioBuffer): Float32Array => {
 const resampleLinear = (
   input: Float32Array,
   inputRate: number,
-  targetRate: number
+  targetRate: number,
 ): Float32Array => {
   if (inputRate === targetRate) {
     return input.slice();
@@ -49,7 +49,7 @@ const resampleLinear = (
 
 export const decodeMediaToPcm = async (
   blob: Blob,
-  targetSampleRate = 16_000
+  targetSampleRate = 16_000,
 ): Promise<PcmData> => {
   const arrayBuffer = await blob.arrayBuffer();
   const audioContext = new AudioContext();

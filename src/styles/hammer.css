@@ -197,7 +197,10 @@ textarea:focus {
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 12px;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .hm-button:not(:disabled):hover {
@@ -254,7 +257,9 @@ textarea:focus {
   text-align: left;
   font-size: 12px;
   color: inherit;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .hm-tab.active {
@@ -1229,7 +1234,9 @@ textarea:focus {
   text-align: left;
   font-size: 14px;
   color: inherit;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
 }
 
 .hub-nav-item.active {
@@ -1281,7 +1288,10 @@ textarea:focus {
   border: 1px solid var(--forge-accent);
   background: var(--forge-accent);
   color: var(--forge-text-on-accent);
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .hub-header-actions button:hover {
@@ -1349,7 +1359,10 @@ textarea:focus {
   border: 1px solid var(--forge-accent);
   background: var(--forge-accent);
   color: var(--forge-text-on-accent);
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 
 .hub-form-actions button:hover {
@@ -1409,7 +1422,9 @@ textarea:focus {
   display: grid;
   gap: 12px;
   cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .project-card:focus {

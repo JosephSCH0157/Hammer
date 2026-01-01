@@ -37,8 +37,8 @@ const openDb = (): Promise<IDBDatabase> => {
       dbPromise = null;
       reject(
         new Error(
-          "IndexedDB open blocked (another tab may be using an old connection). Close other tabs and retry."
-        )
+          "IndexedDB open blocked (another tab may be using an old connection). Close other tabs and retry.",
+        ),
       );
     };
     request.onsuccess = () => {
@@ -51,14 +51,17 @@ const openDb = (): Promise<IDBDatabase> => {
 const requestToPromise = <T>(request: IDBRequest<T>): Promise<T> =>
   new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB request failed"));
   });
 
 const transactionToPromise = (tx: IDBTransaction): Promise<void> =>
   new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
-    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    tx.onerror = () =>
+      reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    tx.onabort = () =>
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
   });
 
 export const putAssetRecord = async (record: AssetRecord): Promise<void> => {
@@ -69,7 +72,9 @@ export const putAssetRecord = async (record: AssetRecord): Promise<void> => {
   await transactionToPromise(tx);
 };
 
-export const getAssetRecord = async (assetId: string): Promise<AssetRecord | null> => {
+export const getAssetRecord = async (
+  assetId: string,
+): Promise<AssetRecord | null> => {
   const db = await openDb();
   const tx = db.transaction(STORE_NAME, "readonly");
   const store = tx.objectStore(STORE_NAME);

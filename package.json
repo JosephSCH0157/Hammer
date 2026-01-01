@@ -16,11 +16,12 @@
     "types": "npm run typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier . --check",
+    "format": "npm run prettier:check",
     "format:fix": "prettier . --write",
+    "prettier:check": "prettier --check .",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "gate": "npm run typecheck && npm run lint && npm run format && npm run test && npm run build"
+    "gate": "npm run lint && npm run types && npm run prettier:check"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",

@@ -1,4 +1,7 @@
-import type { TranscriptDoc, TranscriptSegment } from "../../core/types/project";
+import type {
+  TranscriptDoc,
+  TranscriptSegment,
+} from "../../core/types/project";
 
 type RawSeg = {
   id?: unknown;
@@ -43,16 +46,15 @@ export const importTranscriptJson = (jsonText: string): TranscriptDoc => {
     throw new Error("Transcript JSON is not valid JSON.");
   }
 
-  const rawSegments: unknown =
-    Array.isArray(parsed)
-      ? parsed
-      : parsed && typeof parsed === "object" && "segments" in parsed
-        ? (parsed as { segments?: unknown }).segments
-        : null;
+  const rawSegments: unknown = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && "segments" in parsed
+      ? (parsed as { segments?: unknown }).segments
+      : null;
 
   if (!Array.isArray(rawSegments)) {
     throw new Error(
-      "Transcript JSON must be an array of segments or an object with a 'segments' array."
+      "Transcript JSON must be an array of segments or an object with a 'segments' array.",
     );
   }
 
@@ -74,7 +76,9 @@ export const importTranscriptJson = (jsonText: string): TranscriptDoc => {
     if (rawEndMs !== undefined) {
       const parsedEndMs = asIntMs(rawEndMs);
       if (parsedEndMs === null) {
-        throw new Error(`Segment ${index + 1}: endMs must be a number if provided.`);
+        throw new Error(
+          `Segment ${index + 1}: endMs must be a number if provided.`,
+        );
       }
       if (parsedEndMs <= startMs) {
         throw new Error(`Segment ${index + 1}: endMs must be > startMs.`);

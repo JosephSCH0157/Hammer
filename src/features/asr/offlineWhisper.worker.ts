@@ -30,11 +30,35 @@ type WorkerResultMessage = {
   device?: "webgpu" | "wasm";
 };
 
+type ASRChunk = {
+  text?: string;
+  timestamp?: [number, number];
+  start?: number;
+  end?: number;
+};
+
+type ASRResult = {
+  chunks?: ASRChunk[];
+  segments?: ASRChunk[];
+  text?: string;
+};
+
+type ASRProgress = {
+  progress?: number;
+  loaded?: number;
+  total?: number;
+};
+
+type ASRPipeline = (
+  audio: Float32Array,
+  options?: Record<string, unknown>,
+) => Promise<ASRResult>;
+
 type WorkerMessage = WorkerRequest;
 
 const ctx: DedicatedWorkerGlobalScope = self as DedicatedWorkerGlobalScope;
 
-let pipelinePromise: Promise<any> | null = null;
+let pipelinePromise: Promise<ASRPipeline> | null = null;
 let pipelineModel: string | null = null;
 let lastCached = false;
 let lastDevice: "webgpu" | "wasm" = "wasm";
@@ -55,20 +79,20 @@ const selectDeviceForModel = (modelId: string): "webgpu" | "wasm" => {
   return resolveDevice();
 };
 
-const extractSegments = (result: any): WorkerSegment[] => {
-  const chunks = Array.isArray(result?.chunks)
+const extractSegments = (result?: ASRResult): WorkerSegment[] => {
+  const chunks: ASRChunk[] = Array.isArray(result?.chunks)
     ? result.chunks
     : Array.isArray(result?.segments)
       ? result.segments
       : [];
-  if (!Array.isArray(chunks) || chunks.length === 0) {
+  if (chunks.length === 0) {
     if (typeof result?.text === "string" && result.text.trim().length > 0) {
       return [{ start: 0, end: 0, text: result.text.trim() }];
     }
     return [];
   }
   const segments: WorkerSegment[] = [];
-  chunks.forEach((chunk: any) => {
+  chunks.forEach((chunk: ASRChunk) => {
     if (!chunk || typeof chunk !== "object") {
       return;
     }
@@ -87,7 +111,10 @@ const extractSegments = (result: any): WorkerSegment[] => {
       if (typeof endValue === "number") {
         end = endValue;
       }
-    } else if (typeof chunk.start === "number" && typeof chunk.end === "number") {
+    } else if (
+      typeof chunk.start === "number" &&
+      typeof chunk.end === "number"
+    ) {
       start = chunk.start;
       end = chunk.end;
     }
@@ -98,19 +125,27 @@ const extractSegments = (result: any): WorkerSegment[] => {
 
 const getPipeline = async (
   model: string,
-  requestId: string
-): Promise<{ pipe: any; cached: boolean; device: "webgpu" | "wasm" }> => {
+  requestId: string,
+): Promise<{
+  pipe: ASRPipeline;
+  cached: boolean;
+  device: "webgpu" | "wasm";
+}> => {
   const normalizedModel = model?.trim() || DEFAULT_MODEL;
   if (pipelinePromise && pipelineModel === normalizedModel) {
-    return { pipe: await pipelinePromise, cached: lastCached, device: lastDevice };
+    return {
+      pipe: await pipelinePromise,
+      cached: lastCached,
+      device: lastDevice,
+    };
   }
   const device = selectDeviceForModel(normalizedModel);
   lastDevice = device;
   let sawDownload = false;
   pipelineModel = normalizedModel;
-  pipelinePromise = pipeline("automatic-speech-recognition", normalizedModel, {
+  const pipelineOptions = {
     device,
-    progress_callback: (progress: any) => {
+    progress_callback: (progress: ASRProgress) => {
       sawDownload = true;
       let ratio: number | null = null;
       if (typeof progress?.progress === "number") {
@@ -133,7 +168,13 @@ const getPipeline = async (
       }
       ctx.postMessage(status);
     },
-  } as Record<string, unknown>);
+  } as Record<string, unknown>;
+  const pipelineCall = pipeline(
+    "automatic-speech-recognition",
+    normalizedModel,
+    pipelineOptions,
+  );
+  pipelinePromise = pipelineCall as Promise<ASRPipeline>;
   try {
     const pipe = await pipelinePromise;
     lastCached = !sawDownload;

@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import type { ProjectListItem, StorageProvider } from "../../providers/storage/storageProvider";
+import type {
+  ProjectListItem,
+  StorageProvider,
+} from "../../providers/storage/storageProvider";
 import { importMedia } from "../../features/ingest/importMedia";
 import { HubHeader } from "../components/hub/HubHeader";
 import { HubLeftNav } from "../components/hub/HubLeftNav";
-import { ProjectGrid, type ProjectSummary } from "../components/hub/ProjectGrid";
+import {
+  ProjectGrid,
+  type ProjectSummary,
+} from "../components/hub/ProjectGrid";
 
 type Props = {
   storage: StorageProvider;
@@ -42,7 +48,9 @@ export function ProjectHubPage({ storage, onOpenProject }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [projectFile, setProjectFile] = useState<File | null>(null);
-  const [createStatus, setCreateStatus] = useState<"idle" | "creating" | "error">("idle");
+  const [createStatus, setCreateStatus] = useState<
+    "idle" | "creating" | "error"
+  >("idle");
   const [createError, setCreateError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -93,7 +101,11 @@ export function ProjectHubPage({ storage, onOpenProject }: Props) {
     setCreateError(null);
     try {
       const title = projectName.trim();
-      const project = await importMedia(projectFile, storage, title.length ? title : undefined);
+      const project = await importMedia(
+        projectFile,
+        storage,
+        title.length ? title : undefined,
+      );
       onOpenProject(project.projectId);
       setShowCreate(false);
       setProjectFile(null);
@@ -103,7 +115,9 @@ export function ProjectHubPage({ storage, onOpenProject }: Props) {
       }
     } catch (e) {
       setCreateStatus("error");
-      setCreateError(e instanceof Error ? e.message : "Unable to create project");
+      setCreateError(
+        e instanceof Error ? e.message : "Unable to create project",
+      );
     } finally {
       void refresh();
     }
@@ -133,7 +147,10 @@ export function ProjectHubPage({ storage, onOpenProject }: Props) {
     <div className="hub-shell">
       <HubLeftNav active="start" />
       <div className="hub-main">
-        <HubHeader onNewProject={handleNewProject} onOpenProject={handleOpenProject} />
+        <HubHeader
+          onNewProject={handleNewProject}
+          onOpenProject={handleOpenProject}
+        />
 
         {showCreate && (
           <section className="hub-create" aria-label="Create new project">
@@ -158,7 +175,9 @@ export function ProjectHubPage({ storage, onOpenProject }: Props) {
               </label>
               <div className="hub-form-actions">
                 <button type="submit" disabled={createStatus === "creating"}>
-                  {createStatus === "creating" ? "Creating..." : "Create project"}
+                  {createStatus === "creating"
+                    ? "Creating..."
+                    : "Create project"}
                 </button>
                 <button
                   type="button"
@@ -177,7 +196,9 @@ export function ProjectHubPage({ storage, onOpenProject }: Props) {
         <section className="hub-library" ref={gridRef}>
           <div className="hub-library-header">
             <h2>Project Library</h2>
-            {status === "loading" && <span className="hub-muted">Loading...</span>}
+            {status === "loading" && (
+              <span className="hub-muted">Loading...</span>
+            )}
             {status === "error" && <span className="hub-error">{error}</span>}
           </div>
 

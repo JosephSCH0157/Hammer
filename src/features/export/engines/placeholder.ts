@@ -3,7 +3,7 @@ import type { ExportContainer, RenderPlan } from "../../../core/types/render";
 export const createPlaceholderExport = (
   plan: RenderPlan,
   keptDurationMs: number,
-  container: ExportContainer
+  container: ExportContainer,
 ): {
   blob: Blob;
   mime: string;

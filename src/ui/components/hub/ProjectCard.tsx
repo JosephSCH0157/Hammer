@@ -44,15 +44,21 @@ export function ProjectCard({ project, onOpen, onDelete }: Props) {
       onClick={() => onOpen(project.projectId)}
       onKeyDown={handleKeyDown}
     >
-      <div className={`project-thumb${isPlaceholder ? " project-thumb--placeholder" : ""}`}>
+      <div
+        className={`project-thumb${isPlaceholder ? " project-thumb--placeholder" : ""}`}
+      >
         <img src={thumbnailUrl} alt="" />
       </div>
       <div className="project-card-body">
         <div className="project-title">{project.title}</div>
-        <div className="project-meta">Last edited: {formatUpdatedAt(project.updatedAt)}</div>
+        <div className="project-meta">
+          Last edited: {formatUpdatedAt(project.updatedAt)}
+        </div>
         <div className="project-meta">
           Duration: {formatDuration(project.durationMs)}
-          {typeof project.cutsCount === "number" ? ` · Cuts: ${project.cutsCount}` : ""}
+          {typeof project.cutsCount === "number"
+            ? ` ï¿½ Cuts: ${project.cutsCount}`
+            : ""}
         </div>
       </div>
       {onDelete && (
