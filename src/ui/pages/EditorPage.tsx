@@ -253,8 +253,10 @@ export function EditorPage({
   const [asrCached, setAsrCached] = useState(false);
   const [asrDevice, setAsrDevice] = useState<"webgpu" | "wasm" | null>(null);
   const asrModel = "Xenova/whisper-base.en";
-  const [transcriptionCanceledThisSession, setTranscriptionCanceledThisSession] =
-    useState(false);
+  const [
+    transcriptionCanceledThisSession,
+    setTranscriptionCanceledThisSession,
+  ] = useState(false);
   const transcriptionCancelledRef = useRef(false);
   const autoTranscribedProjectsRef = useRef<Set<string>>(new Set());
   const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
@@ -745,27 +747,6 @@ export function EditorPage({
   }, []);
 
   useEffect(() => {
-    if (
-      autoTranscribedProjectsRef.current.has(project.projectId) ||
-      transcriptionCanceledThisSession ||
-      isTranscriptValid ||
-      asrBusy ||
-      !sourceAssetId
-    ) {
-      return;
-    }
-    autoTranscribedProjectsRef.current.add(project.projectId);
-    void handleOfflineTranscribe();
-  }, [
-    asrBusy,
-    handleOfflineTranscribe,
-    isTranscriptValid,
-    project.projectId,
-    sourceAssetId,
-    transcriptionCanceledThisSession,
-  ]);
-
-  useEffect(() => {
     transcriptionCancelledRef.current = false;
     setTranscriptionCanceledThisSession(false);
   }, [project.projectId]);
@@ -966,7 +947,7 @@ export function EditorPage({
     return asrClientRef.current;
   };
 
-  const updateAsrStatus = (status: OfflineWhisperStatus) => {
+  const updateAsrStatus = useCallback((status: OfflineWhisperStatus) => {
     setAsrStatus(status.phase);
     setAsrProgress(
       typeof status.progress === "number" ? status.progress : null,
@@ -980,25 +961,26 @@ export function EditorPage({
     if (status.phase === "error") {
       setAsrError(status.message ?? "Offline transcription failed.");
     }
-  };
+  }, []);
 
-  const buildTranscriptFromAsr = (
-    result: OfflineWhisperResult,
-  ): TranscriptDoc => {
-    const segments = result.segments
-      .map((segment, index) => {
-        const text = segment.text.trim();
-        if (!text) {
-          return null;
-        }
-        const startMs = Math.max(0, Math.round(segment.start * 1000));
-        const endMs = Math.max(startMs, Math.round(segment.end * 1000));
-        const id = `asr_${index}_${startMs}`;
-        return { id, startMs, endMs, text };
-      })
-      .filter(Boolean) as TranscriptSegment[];
-    return buildTranscriptDoc(segments, project.source.asset.assetId, "en");
-  };
+  const buildTranscriptFromAsr = useCallback(
+    (result: OfflineWhisperResult): TranscriptDoc => {
+      const segments = result.segments
+        .map((segment, index) => {
+          const text = segment.text.trim();
+          if (!text) {
+            return null;
+          }
+          const startMs = Math.max(0, Math.round(segment.start * 1000));
+          const endMs = Math.max(startMs, Math.round(segment.end * 1000));
+          const id = `asr_${index}_${startMs}`;
+          return { id, startMs, endMs, text };
+        })
+        .filter(Boolean) as TranscriptSegment[];
+      return buildTranscriptDoc(segments, sourceAssetId, "en");
+    },
+    [sourceAssetId],
+  );
 
   const handleOfflineTranscribe = useCallback(async () => {
     if (asrBusy) {
@@ -1046,7 +1028,9 @@ export function EditorPage({
         return;
       }
       const message =
-        error instanceof Error ? error.message : "Offline transcription failed.";
+        error instanceof Error
+          ? error.message
+          : "Offline transcription failed.";
       setTranscriptStatus("error");
       setTranscriptError(message);
       setAsrStatus("error");
@@ -1056,6 +1040,7 @@ export function EditorPage({
     applyTranscript,
     asrBusy,
     asrModel,
+    buildTranscriptFromAsr,
     sourceAssetId,
     storage,
     updateAsrStatus,
@@ -1074,6 +1059,27 @@ export function EditorPage({
     setAsrStatus("idle");
     setAsrError("Offline transcription canceled.");
   };
+
+  useEffect(() => {
+    if (
+      autoTranscribedProjectsRef.current.has(project.projectId) ||
+      transcriptionCanceledThisSession ||
+      isTranscriptValid ||
+      asrBusy ||
+      !sourceAssetId
+    ) {
+      return;
+    }
+    autoTranscribedProjectsRef.current.add(project.projectId);
+    void handleOfflineTranscribe();
+  }, [
+    asrBusy,
+    handleOfflineTranscribe,
+    isTranscriptValid,
+    project.projectId,
+    sourceAssetId,
+    transcriptionCanceledThisSession,
+  ]);
 
   const buildShortLabel = (title: string) => {
     const base = title.trim();
@@ -2062,13 +2068,13 @@ export function EditorPage({
                         ))}
                       </select>
                     </label>
-                <button
-                  className="hm-button hm-button--compact"
-                  onClick={handleGenerateShorts}
-                  disabled={shortsStatus === "loading" || shortsBlocked}
-                >
-                  {shortsButtonLabel}
-                </button>
+                    <button
+                      className="hm-button hm-button--compact"
+                      onClick={handleGenerateShorts}
+                      disabled={shortsStatus === "loading" || shortsBlocked}
+                    >
+                      {shortsButtonLabel}
+                    </button>
                     {shortSuggestions.length > 0 && (
                       <button
                         className="hm-button hm-button--ghost hm-button--compact"

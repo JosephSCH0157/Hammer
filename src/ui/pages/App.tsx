@@ -23,7 +23,7 @@ const parseRoute = (pathname: string): Route => {
     if (!remainder) {
       return { kind: "hub" };
     }
-    const [encodedProjectId, ...rest] = remainder.split("/");
+    const [encodedProjectId = "", ...rest] = remainder.split("/");
     const projectId = decodeURIComponent(encodedProjectId);
     if (!projectId) {
       return { kind: "hub" };

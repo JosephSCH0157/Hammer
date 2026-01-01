@@ -24,7 +24,10 @@ type Props = {
 };
 
 export function TranscriptPage({ project, onBack }: Props) {
-  const segments = project.transcript?.segments ?? [];
+  const segments = useMemo(
+    () => project.transcript?.segments ?? [],
+    [project.transcript?.segments],
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const sortedSegments = useMemo(
     () => [...segments].sort((a, b) => a.startMs - b.startMs),
@@ -41,7 +44,8 @@ export function TranscriptPage({ project, onBack }: Props) {
     );
   }, [isSearching, normalizedQuery, sortedSegments]);
   const hasTranscript = segments.length > 0;
-  const noMatches = hasTranscript && isSearching && filteredSegments.length === 0;
+  const noMatches =
+    hasTranscript && isSearching && filteredSegments.length === 0;
 
   return (
     <div className="hm-transcript-page">
@@ -86,7 +90,8 @@ export function TranscriptPage({ project, onBack }: Props) {
         ) : noMatches ? (
           <div className="hm-transcript-empty">
             <p className="muted">
-              No matching transcript lines. Clear your search to browse everything.
+              No matching transcript lines. Clear your search to browse
+              everything.
             </p>
           </div>
         ) : (
