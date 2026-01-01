@@ -1004,7 +1004,9 @@ export function EditorPage({
     } catch (error) {
       setTranscriptStatus("error");
       setTranscriptError(
-        error instanceof Error ? error.message : "Offline transcription failed.",
+        error instanceof Error
+          ? error.message
+          : "Offline transcription failed.",
       );
       setAsrStatus("error");
       setAsrError(
@@ -1916,7 +1918,8 @@ export function EditorPage({
                 {segments.length === 0 ? (
                   <div className="hm-transcript-empty">
                     <p className="muted stacked-gap-lg">
-                      No transcript yet. Generate an offline transcript to get started.
+                      No transcript yet. Generate an offline transcript to get
+                      started.
                     </p>
                   </div>
                 ) : (
