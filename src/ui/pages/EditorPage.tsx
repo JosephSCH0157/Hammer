@@ -547,6 +547,23 @@ export function EditorPage({
     : "";
   const shortsBlocked = !hasTimestampedTranscript;
   const shortsBlockedMessage = shortsBlocked ? "Need VTT/SRT timestamps." : "";
+  const hasTranscript = segments.length > 0;
+  const transcriptStatusPillParts = [asrStatusLabel];
+  if (asrProgressLabel) {
+    transcriptStatusPillParts.push(asrProgressLabel);
+  }
+  if (asrDeviceLabel) {
+    transcriptStatusPillParts.push(asrDeviceLabel);
+  }
+  if (asrCached) {
+    transcriptStatusPillParts.push("Cached");
+  }
+  const transcriptStatusPill = transcriptStatusPillParts
+    .filter(Boolean)
+    .join(" • ");
+  const transcriptGenerateLabel = hasTranscript
+    ? "Regenerate"
+    : "Generate stub";
 
   useEffect(() => {
     let cancelled = false;
@@ -1859,25 +1876,12 @@ export function EditorPage({
                     {segments.length} segments
                   </span>
                 </div>
-                <div className="hm-panel-actions">
-                  <button
-                    className="hm-button hm-button--ghost"
-                    onClick={handleImportTranscriptClick}
-                    disabled={transcriptStatus === "loading"}
-                  >
-                    Import transcript
-                  </button>
-                  <button
-                    className="hm-button"
-                    onClick={handleGenerateTranscript}
-                    disabled={transcriptStatus === "loading"}
-                  >
-                    {segments.length > 0 ? "Regenerate" : "Generate stub"}
-                  </button>
-                </div>
-              </div>
-              <div className="hm-panel-body">
-                <div className="hm-transcript-offline">
+                <div className="hm-transcript-header">
+                  <div className="hm-transcript-status">
+                    <span className="hm-transcript-pill">
+                      {transcriptStatusPill}
+                    </span>
+                  </div>
                   <div className="hm-transcript-offline-row">
                     <label className="hm-transcript-model">
                       <span>Model</span>
@@ -1899,32 +1903,38 @@ export function EditorPage({
                       Generate Transcript (Offline)
                     </button>
                   </div>
-                  <div className="hm-transcript-status">
-                    <span>
-                      {asrStatusLabel}
-                      {asrProgressLabel ? ` (${asrProgressLabel})` : ""}
-                      {asrCached && !asrBusy ? " - Model cached" : ""}
-                    </span>
-                    {asrDeviceLabel && (
-                      <span className="hm-transcript-pill">
-                        {asrDeviceLabel}
-                      </span>
-                    )}
+                  <div className="hm-panel-actions">
+                    <button
+                      className="hm-button hm-button--ghost"
+                      onClick={handleImportTranscriptClick}
+                      disabled={transcriptStatus === "loading"}
+                    >
+                      Import transcript
+                    </button>
+                    <button
+                      className="hm-button"
+                      onClick={handleGenerateTranscript}
+                      disabled={transcriptStatus === "loading"}
+                    >
+                      {transcriptGenerateLabel}
+                    </button>
                   </div>
-                  {asrStatus === "loading-model" && (
-                    <div className="hm-transcript-progress">
-                      <div
-                        className="hm-transcript-progressFill"
-                        style={{
-                          width: `${Math.round((asrProgress ?? 0) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                  )}
-                  {asrError && (
-                    <div className="hm-transcript-error">{asrError}</div>
-                  )}
                 </div>
+              </div>
+              <div className="hm-panel-body hm-transcript-body">
+                {asrStatus === "loading-model" && (
+                  <div className="hm-transcript-progress">
+                    <div
+                      className="hm-transcript-progressFill"
+                      style={{
+                        width: `${Math.round((asrProgress ?? 0) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                )}
+                {asrError && (
+                  <div className="hm-transcript-error">{asrError}</div>
+                )}
                 {transcriptStatus === "error" && (
                   <p className="stacked-gap">
                     Transcript error: {transcriptError}
@@ -1934,22 +1944,28 @@ export function EditorPage({
                   <p className="muted stacked-gap">Importing transcript...</p>
                 )}
                 {segments.length === 0 ? (
-                  <p className="muted stacked-gap-lg">
-                    No transcript yet. Generate a stub to wire up interaction.
-                  </p>
+                  <div className="hm-transcript-empty">
+                    <p className="muted stacked-gap-lg">
+                      No transcript yet. Generate a stub to wire up interaction.
+                    </p>
+                  </div>
                 ) : (
                   <div className="transcript-list">
                     {segments.map((segment) => {
                       const isActive = segment.id === activeSegmentId;
                       const hasRange = segment.endMs > segment.startMs;
                       const timeLabel = hasRange
-                        ? `${formatTimestamp(segment.startMs)} – ${formatTimestamp(segment.endMs)}`
+                        ? `${formatTimestamp(segment.startMs)} - ${formatTimestamp(
+                            segment.endMs,
+                          )}`
                         : formatTimestamp(segment.startMs);
                       return (
                         <button
                           key={segment.id}
                           onClick={() => handleSegmentClick(segment)}
-                          className={`transcript-segment${isActive ? " active" : ""}`}
+                          className={`transcript-segment${
+                            isActive ? " active" : ""
+                          }`}
                         >
                           <div className="transcript-timestamp">
                             {timeLabel}
